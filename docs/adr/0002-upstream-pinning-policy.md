@@ -9,9 +9,9 @@
 Odoo Community publică update-uri continuu pe Docker Hub:
 - `odoo:latest` — mutabil, primește orice
 - `odoo:19` — major track, primește toate patches în 19.x
-- `odoo:19.0` — minor track, primește toate patches în 19.0.x
-- `odoo:19.0.20260501` — calendar version, **aparent** imutabil
-- `odoo:19.0.20260501@sha256:abc...` — content-addressed, **garantat** imutabil
+- `odoo:19.0` — minor track, primește toate patches în 19.0-* (mutabil)
+- `odoo:19.0-20260501` — calendar version, **aparent** imutabil
+- `odoo:19.0-20260501@sha256:abc...` — content-addressed, **garantat** imutabil
 
 Folosirea `:latest` sau `:19` în production = `docker compose pull` poate aduce orice schimbare silent. Pentru ERP cu date fiscale, e inacceptabil:
 - Schema migration neprevăzut → DB corupt
@@ -27,7 +27,7 @@ Dar pinning fără mecanism de update = security debt acumulat (CVE-uri ne-aplic
 ### 1. Pinning în `docker/Dockerfile`
 
 ```dockerfile
-ARG ODOO_VERSION=19.0.YYYYMMDD       # calendar version explicit
+ARG ODOO_VERSION=19.0-YYYYMMDD       # calendar version explicit (liniuță, nu punct)
 ARG ODOO_DIGEST=sha256:abc1234...    # content-addressed, imutabil
 
 FROM odoo:${ODOO_VERSION}@${ODOO_DIGEST}
@@ -37,8 +37,8 @@ FROM odoo:${ODOO_VERSION}@${ODOO_DIGEST}
 - ❌ `odoo:latest` — mutabil total
 - ❌ `odoo:19` — major track, primește patches silent
 - ❌ `odoo:19.0` — minor track, idem
-- ⚠ `odoo:19.0.20260501` (fără digest) — protejat parțial, dar tag-urile pot fi re-publicate
-- ✅ `odoo:19.0.20260501@sha256:...` — garantat imutabil
+- ⚠ `odoo:19.0-20260501` (fără digest) — protejat parțial, dar tag-urile pot fi re-publicate
+- ✅ `odoo:19.0-20260501@sha256:...` — garantat imutabil
 
 ### 2. Alerting prin Renovate Bot
 
@@ -61,8 +61,8 @@ FROM odoo:${ODOO_VERSION}@${ODOO_DIGEST}
 
 ```bash
 # Recomandat: prin script (smoke test included)
-scripts/update-odoo.sh --target 19.0.20260601 --dry-run
-scripts/update-odoo.sh --target 19.0.20260601
+scripts/update-odoo.sh --target 19.0-20260601 --dry-run
+scripts/update-odoo.sh --target 19.0-20260601
 
 # Sau prin Renovate PR review + merge
 ```

@@ -7,11 +7,14 @@
 # Update procedure: docs/runbooks/upgrade.md
 # Pinning policy:   docs/adr/0002-upstream-pinning-policy.md
 
-# TODO la primul build: înlocuiește <PIN-AT-FIRST-BUILD> cu output-ul real:
-#   docker pull odoo:19.0
-#   docker inspect odoo:19.0 | jq -r '.[0].RepoDigests[0]'
-ARG ODOO_VERSION=19.0
-ARG ODOO_DIGEST=sha256:PIN-AT-FIRST-BUILD-VEZI-RUNBOOK
+# Versiune pinned: tag format Odoo official e `19.0-YYYYMMDD` (liniuță, nu punct).
+# Update procedure: scripts/update-odoo.sh (NU manual edit aici fără verificare).
+#
+# Verificare digest:
+#   docker pull odoo:${ODOO_VERSION}
+#   docker inspect odoo:${ODOO_VERSION} | jq -r '.[0].RepoDigests[]'
+ARG ODOO_VERSION=19.0-20260504
+ARG ODOO_DIGEST=sha256:5db447482177ca598b97539bc186b61f5f271371ab3a90f3940ecf33b63af7b0
 
 FROM odoo:${ODOO_VERSION}@${ODOO_DIGEST}
 

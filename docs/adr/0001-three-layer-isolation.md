@@ -49,7 +49,7 @@ Adoptăm **Three-Layer Isolation**: trei nivele cu reguli clare, hook-uri struct
 - Debugging cu sources locale când debugger atașează la container
 - Citit pattern-uri Odoo (cum se face wizard, controller, etc.)
 
-**NU e folosit ca runtime.** Container-ul rulează din imaginea oficială Docker Hub `odoo:19.0.YYYYMMDD@sha256:...` (vezi ADR 0002).
+**NU e folosit ca runtime.** Container-ul rulează din imaginea oficială Docker Hub `odoo:19.0-YYYYMMDD@sha256:...` (vezi ADR 0002).
 
 **Update flow:**
 ```bash

@@ -42,7 +42,7 @@
 ## Sunset criteria
 
 <OBLIGATORIU concret și verificabil. Exemple:>
-- [ ] Upstream PR <link> merged și released în versiunea `19.0.YYYYMMDD` sau superior
+- [ ] Upstream PR <link> merged și released în versiunea `19.0-YYYYMMDD` sau superior
 - [ ] Addon `paff_X` finalizat și deployed în production (issue #NNN)
 - [ ] Migrare la Odoo 20.0 (când)
 - [ ] CVE-YYYY-NNNNN closed în security advisory upstream

@@ -25,13 +25,13 @@ if [[ -z "$current_version" ]]; then
 fi
 
 #─────────────────────────────────────────────────────────────────────────
-# Query Docker Hub pentru tags noi pe linia 19.0.x
+# Query Docker Hub pentru tags noi pe linia 19.0-YYYYMMDD
 #─────────────────────────────────────────────────────────────────────────
 echo "[check-odoo] Current pinned: $current_version"
 echo "[check-odoo] Querying Docker Hub..."
 
-tags=$(curl -fsSL "https://hub.docker.com/v2/repositories/library/odoo/tags?name=19.0.&page_size=20" \
-  | jq -r '.results | map(.name) | map(select(test("^19\\.0\\.[0-9]+$")))') \
+tags=$(curl -fsSL "https://hub.docker.com/v2/repositories/library/odoo/tags?name=19.0&page_size=100" \
+  | jq -r '.results | map(.name) | map(select(test("^19\\.0-[0-9]+$")))') \
   || { echo "ERROR: Docker Hub query failed" >&2; exit 1; }
 
 latest=$(echo "$tags" | jq -r 'sort | reverse | .[0]')
@@ -49,10 +49,10 @@ echo "[check-odoo] New version available: $latest (current: $current_version)"
 fetch_changelog() {
   local from="$1"
   local to="$2"
-  local from_date="${from#19.0.}"
-  local to_date="${to#19.0.}"
+  local from_date="${from#19.0-}"
+  local to_date="${to#19.0-}"
 
-  # Format Odoo: 19.0.YYYYMMDD → date pentru filtrare commits
+  # Format Odoo: 19.0-YYYYMMDD → date pentru filtrare commits
   curl -fsSL "https://api.github.com/repos/odoo/odoo/compare/${from_date}...${to_date}" 2>/dev/null \
     | jq -r '.commits | map(.commit.message) | .[]' 2>/dev/null \
     || echo ""
@@ -129,9 +129,10 @@ Changelog (top 10 commits):
 $(echo "$changelog" | head -10 | sed 's/^/  • /')
 
 Action items:
-  1. Review full changelog: https://github.com/odoo/odoo/compare/${current_version#19.0.}...${latest#19.0.}
+  1. Review full changelog: https://github.com/odoo/odoo/compare/${current_version#19.0-}...${latest#19.0-}
   2. Run: scripts/update-odoo.sh --target $latest --dry-run
   3. If smoke test passes: scripts/update-odoo.sh --target $latest
+
 REPORT
 
 exit "$severity"

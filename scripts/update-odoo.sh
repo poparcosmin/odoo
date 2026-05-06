@@ -11,9 +11,9 @@
 #   7. Update Dockerfile + commit
 #
 # Usage:
-#   scripts/update-odoo.sh --target 19.0.20260601
+#   scripts/update-odoo.sh --target 19.0-20260601
 #   scripts/update-odoo.sh --latest-stable
-#   scripts/update-odoo.sh --dry-run --target 19.0.20260601
+#   scripts/update-odoo.sh --dry-run --target 19.0-20260601
 
 set -euo pipefail
 
@@ -52,8 +52,8 @@ fi
 resolve_target() {
   if [[ $LATEST_STABLE -eq 1 ]]; then
     echo "[update-odoo] Querying Docker Hub for latest stable on 19.0..." >&2
-    TARGET=$(curl -fsSL "https://hub.docker.com/v2/repositories/library/odoo/tags?name=19.0.&page_size=20" \
-      | jq -r '.results | map(.name) | map(select(test("^19\\.0\\.[0-9]+$"))) | sort | reverse | .[0]')
+    TARGET=$(curl -fsSL "https://hub.docker.com/v2/repositories/library/odoo/tags?name=19.0&page_size=100" \
+      | jq -r '.results | map(.name) | map(select(test("^19\\.0-[0-9]+$"))) | sort | reverse | .[0]')
     if [[ -z "$TARGET" || "$TARGET" == "null" ]]; then
       echo "[update-odoo] ✗ Could not resolve latest stable" >&2
       exit 1

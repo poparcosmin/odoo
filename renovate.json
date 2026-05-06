@@ -56,10 +56,10 @@
   ],
   "regexManagers": [
     {
-      "description": "Track ODOO_VERSION + ODOO_DIGEST în Dockerfile",
+      "description": "Track ODOO_VERSION + ODOO_DIGEST în Dockerfile (format: 19.0-YYYYMMDD)",
       "fileMatch": ["^docker/Dockerfile$"],
       "matchStrings": [
-        "ARG ODOO_VERSION=(?<currentValue>[0-9.]+)\\s*\\nARG ODOO_DIGEST=(?<currentDigest>sha256:[a-f0-9]+)"
+        "ARG ODOO_VERSION=(?<currentValue>[0-9]+\\.[0-9]+-[0-9]+)\\s*\\nARG ODOO_DIGEST=(?<currentDigest>sha256:[a-f0-9]+)"
       ],
       "datasourceTemplate": "docker",
       "depNameTemplate": "odoo",
