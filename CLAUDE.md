@@ -96,7 +96,7 @@ Detalii: [docs/adr/0001-three-layer-isolation.md](docs/adr/0001-three-layer-isol
 - ❌ `odoo:19.0` (minor track, mutabil)
 
 **OBLIGATORIU:**
-- ✅ `odoo:19.0.YYYYMMDD@sha256:<digest>` (calendar version + content-addressed digest)
+- ✅ `odoo:19.0-YYYYMMDD@sha256:<digest>` (calendar version + content-addressed digest)
 
 Rationale și mecanism: [docs/adr/0002-upstream-pinning-policy.md](docs/adr/0002-upstream-pinning-policy.md)
 
@@ -118,8 +118,8 @@ Rationale și mecanism: [docs/adr/0002-upstream-pinning-policy.md](docs/adr/0002
 
 ```bash
 # Recomandat: prin script (smoke test included)
-scripts/update-odoo.sh --target 19.0.YYYYMMDD --dry-run
-scripts/update-odoo.sh --target 19.0.YYYYMMDD
+scripts/update-odoo.sh --target 19.0-YYYYMMDD --dry-run
+scripts/update-odoo.sh --target 19.0-YYYYMMDD
 
 # SAU prin Renovate PR review + merge
 ```
@@ -223,8 +223,8 @@ scripts/restore-db.sh data/backup/daily/paff_prod-YYYYMMDD-HHMMSS paff_test
 scripts/check-odoo-update.sh
 
 # Apply update (cu smoke test)
-scripts/update-odoo.sh --target 19.0.YYYYMMDD --dry-run
-scripts/update-odoo.sh --target 19.0.YYYYMMDD
+scripts/update-odoo.sh --target 19.0-YYYYMMDD --dry-run
+scripts/update-odoo.sh --target 19.0-YYYYMMDD
 ```
 
 ### Update src/odoo/ (READ-ONLY pull)

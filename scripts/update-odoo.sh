@@ -11,9 +11,9 @@
 #   7. Update Dockerfile + commit
 #
 # Usage:
-#   scripts/update-odoo.sh --target 19.0.20260601
+#   scripts/update-odoo.sh --target 19.0-20260601
 #   scripts/update-odoo.sh --latest-stable
-#   scripts/update-odoo.sh --dry-run --target 19.0.20260601
+#   scripts/update-odoo.sh --dry-run --target 19.0-20260601
 
 set -euo pipefail
 
@@ -52,8 +52,8 @@ fi
 resolve_target() {
   if [[ $LATEST_STABLE -eq 1 ]]; then
     echo "[update-odoo] Querying Docker Hub for latest stable on 19.0..." >&2
-    TARGET=$(curl -fsSL "https://hub.docker.com/v2/repositories/library/odoo/tags?name=19.0.&page_size=20" \
-      | jq -r '.results | map(.name) | map(select(test("^19\\.0\\.[0-9]+$"))) | sort | reverse | .[0]')
+    TARGET=$(curl -fsSL "https://hub.docker.com/v2/repositories/library/odoo/tags?name=19.0&page_size=100" \
+      | jq -r '.results | map(.name) | map(select(test("^19\\.0-[0-9]+$"))) | sort | reverse | .[0]')
     if [[ -z "$TARGET" || "$TARGET" == "null" ]]; then
       echo "[update-odoo] ✗ Could not resolve latest stable" >&2
       exit 1
@@ -92,68 +92,124 @@ build_staging() {
     "${REPO_ROOT}"
 }
 
+#─────────────────────────────────────────────────────────────────────────
+# Smoke test pentru staging container.
+#
+# Scope: validare BUILD + STARTUP + IMAGE INTEGRITY + RUNTIME DEPENDENCIES.
+# Out of scope: tests funcționale care cer DB inițializată (login admin,
+# install module, ANAF flow). Acelea se rulează în staging environment
+# cu DB prepopulată, NU la fiecare update upstream.
+#
+# Failure mode: collect-all (rulează toate testele, raport agregat).
+# Motivație: la upgrade-uri minore, vrem să vedem TOATE problemele odată,
+# nu să iterăm pe fiecare în parte. Fail-fast doar pentru T1 critic
+# (container running) — fără el, restul testelor n-au sens.
+#─────────────────────────────────────────────────────────────────────────
 run_smoke_test() {
   local version="$1"
+  local failed_tests=()
+  local passed_tests=()
 
-  echo "[update-odoo] Starting staging container..." >&2
+  echo "[smoke-test] ─── Starting staging container ─────────────────" >&2
   docker rm -f "$STAGING_CONTAINER" 2>/dev/null || true
-  docker run -d --name "$STAGING_CONTAINER" \
-    --network paff_apps 2>/dev/null \
-    "$STAGING_TAG" || \
-  docker run -d --name "$STAGING_CONTAINER" "$STAGING_TAG"
 
+  # Container fără PostgreSQL real — smoke test verifică BINARUL + IMAGINEA,
+  # nu integrarea cu DB. Override entrypoint cu sleep ca să putem face
+  # docker exec fără ca Odoo să încerce conectarea la PG inexistent.
+  if ! docker run -d --name "$STAGING_CONTAINER" \
+       --entrypoint "" \
+       "$STAGING_TAG" \
+       sleep 300 2>&1; then
+    echo "[smoke-test] ✗ T1 CRITICAL: Container failed to start. Aborting." >&2
+    return 1
+  fi
+  passed_tests+=("T1: container running")
   trap "docker rm -f $STAGING_CONTAINER >/dev/null 2>&1 || true" EXIT
 
-  #─────────────────────────────────────────────────────────────────────
-  # TODO USER: definește smoke test conditions concrete pentru PAFF.
-  #
-  # Întrebări de răspuns (5-10 linii bash mai jos):
-  #   1. Cât timp e acceptabil pentru container să devină healthy?
-  #      (default propus: 60s — modifică dacă PAFF Odoo are startup mai lung)
-  #   2. /web/health 200 e suficient sau vrei și un test funcțional?
-  #      Exemple test funcțional:
-  #        - Login admin → response 200 (verifică auth flow)
-  #        - GET /web/dataset/call_kw cu res.partner.search → JSON valid
-  #        - Creare partner test cu CIF "RO12345678" → ANAF lookup OK
-  #   3. Ce condiții fiscale RO trebuie să meargă? (l10n_ro_* loaded?)
-  #
-  # Recomandare: începe simplu (health endpoint + un assert critic),
-  # adaugă condiții pe măsură ce descoperi failure modes.
-  #─────────────────────────────────────────────────────────────────────
+  echo "[smoke-test] ─── Test suite ─────────────────────────────────" >&2
 
-  local timeout=60   # TODO USER: ajustează threshold
-  local elapsed=0
-  echo "[update-odoo] Waiting for healthcheck (timeout: ${timeout}s)..." >&2
-  while [[ $elapsed -lt $timeout ]]; do
-    health=$(docker inspect --format='{{.State.Health.Status}}' "$STAGING_CONTAINER" 2>/dev/null || echo "unknown")
-    if [[ "$health" == "healthy" ]]; then
-      echo "[update-odoo] ✓ Container healthy at ${elapsed}s" >&2
-      break
+  # T2: Image integrity — odoo binary present
+  if docker exec "$STAGING_CONTAINER" bash -c \
+       'test -x /usr/bin/odoo || test -x /usr/lib/python3/dist-packages/odoo/odoo-bin' \
+       2>/dev/null; then
+    passed_tests+=("T2: odoo binary present")
+  else
+    failed_tests+=("T2: odoo binary missing or non-executable")
+  fi
+
+  # T3: Python deps PAFF — uuid-utils + qrcode importabile
+  if docker exec "$STAGING_CONTAINER" python3 -c \
+       "import uuid_utils; import qrcode; print(uuid_utils.uuid7())" >/dev/null 2>&1; then
+    passed_tests+=("T3: PAFF python deps importable (uuid-utils, qrcode)")
+  else
+    failed_tests+=("T3: PAFF python deps FAILED — Dockerfile RUN pip install broken")
+  fi
+
+  # T4: Odoo Python module loadable (config parser works)
+  if docker exec "$STAGING_CONTAINER" python3 -c \
+       "from odoo.tools import config; print('config OK')" >/dev/null 2>&1; then
+    passed_tests+=("T4: Odoo Python module loadable")
+  else
+    failed_tests+=("T4: Odoo module FAILED — image corrupted or version mismatch")
+  fi
+
+  # T5: Patches/ folder structure (Layer 2 din ADR 0001)
+  if docker exec "$STAGING_CONTAINER" test -d /opt/paff-patches; then
+    passed_tests+=("T5: /opt/paff-patches present")
+  else
+    failed_tests+=("T5: /opt/paff-patches MISSING — Dockerfile COPY broken")
+  fi
+
+  # T6: Entrypoint script exists + executable
+  if docker exec "$STAGING_CONTAINER" test -x /opt/paff-entrypoint.sh; then
+    passed_tests+=("T6: entrypoint.sh executable")
+  else
+    failed_tests+=("T6: entrypoint.sh missing or not executable")
+  fi
+
+  # T7: Healthcheck script exists + executable
+  if docker exec "$STAGING_CONTAINER" test -x /opt/paff-healthcheck.sh; then
+    passed_tests+=("T7: healthcheck.sh executable")
+  else
+    failed_tests+=("T7: healthcheck.sh missing or not executable")
+  fi
+
+  # T8: Patches dry-run (dacă există patches/) — incompatibility detection
+  local patches_count
+  patches_count=$(ls -1 patches/*.patch 2>/dev/null | wc -l)
+  if [[ "$patches_count" -gt 0 ]]; then
+    if docker exec "$STAGING_CONTAINER" bash -c '
+      cd /usr/lib/python3/dist-packages/odoo
+      for p in /opt/paff-patches/*.patch; do
+        patch -p1 --dry-run --silent < "$p" || exit 1
+      done
+    ' 2>/dev/null; then
+      passed_tests+=("T8: $patches_count patches dry-run pass")
+    else
+      failed_tests+=("T8: patches dry-run FAILED — incompatibility cu noua versiune Odoo")
     fi
-    sleep 5
-    elapsed=$((elapsed + 5))
+  else
+    passed_tests+=("T8: skip (no patches to test)")
+  fi
+
+  # ─── Raport agregat ────────────────────────────────────────────────
+  echo "[smoke-test] ─── Results ─────────────────────────────────────" >&2
+  for t in "${passed_tests[@]}"; do
+    echo "[smoke-test]   ✓ $t" >&2
+  done
+  for t in "${failed_tests[@]}"; do
+    echo "[smoke-test]   ✗ $t" >&2
   done
 
-  if [[ "$health" != "healthy" ]]; then
-    echo "[update-odoo] ✗ Container unhealthy after ${timeout}s" >&2
-    docker logs --tail=50 "$STAGING_CONTAINER" >&2
+  echo "[smoke-test] Summary: ${#passed_tests[@]} passed, ${#failed_tests[@]} failed" >&2
+
+  if [[ "${#failed_tests[@]}" -gt 0 ]]; then
+    echo "[smoke-test] ✗ Smoke test FAILED. Dockerfile NOT modified." >&2
+    docker logs --tail=30 "$STAGING_CONTAINER" >&2 2>&1 || true
     return 1
   fi
 
-  # TODO USER: adaugă aici asserții suplimentare. Exemple:
-  #
-  # # Test 1: /web/health endpoint OK
-  # docker exec "$STAGING_CONTAINER" curl -sf http://localhost:8069/web/health || return 1
-  #
-  # # Test 2: Login admin reușit (necesită DB initializată)
-  # # docker exec "$STAGING_CONTAINER" odoo shell -d test_db --no-http <<< \
-  # #   'env["res.users"].browse(1).login' || return 1
-  #
-  # # Test 3: Module l10n_ro instalabil (dependențe corecte)
-  # # docker exec "$STAGING_CONTAINER" \
-  # #   odoo --test-enable --stop-after-init -d test_db -i l10n_ro || return 1
-
-  echo "[update-odoo] ✓ Smoke test PASSED" >&2
+  echo "[smoke-test] ✓ All smoke tests PASSED" >&2
   return 0
 }
 

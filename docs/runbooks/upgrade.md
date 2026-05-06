@@ -29,10 +29,10 @@ git diff <current_version>...<new_version> --stat
 
 ### 2. Smoke test în staging
 ```bash
-scripts/update-odoo.sh --target 19.0.YYYYMMDD --dry-run
+scripts/update-odoo.sh --target 19.0-YYYYMMDD --dry-run
 
 # Dacă dry-run pass:
-scripts/update-odoo.sh --target 19.0.YYYYMMDD
+scripts/update-odoo.sh --target 19.0-YYYYMMDD
 # → script rulează smoke test automat
 ```
 
