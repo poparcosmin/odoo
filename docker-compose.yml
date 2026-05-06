@@ -10,7 +10,7 @@ services:
   postgres:
     # Pinned la digest SHA pentru imutabilitate (vezi ADR 0002).
     # Update prin Renovate Bot (renovate.json regexManagers).
-    image: postgres:18.1-alpine@sha256:aa6eb304ddb6dd26df23d05db4e5cb05af8951cda3e0dc57731b771e0ef4ab29
+    image: postgres:18.3-alpine@sha256:54451ecb8ab38c24c3ec123f2fd501303a3a1856a5c66e98cecf2460d5e1e9d7
     container_name: paff-erp-postgres
     environment:
       POSTGRES_DB: ${ODOO_DB_NAME:-paff_prod}
