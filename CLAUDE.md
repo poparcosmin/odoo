@@ -138,6 +138,62 @@ scripts/update-odoo.sh --target 19.0-YYYYMMDD
 
 ⚠ **NU modifica manual** `docker/Dockerfile` cu version+digest fără rulare smoke test.
 
+## Configuration Centralization (Architectural Rule)
+
+**Regula PAFF #1 pentru addon-uri custom:** TOATE variabilele de configurare (peste toate addon-urile `paff_*`) trăiesc într-**UN SINGUR LOC** — atât în UI cât și în DB. Chiar dacă vor exista 5+ addon-uri custom (Telegram, ANAF, FAN Courier, NETOPIA, etc.), fiecare addon NU își creează propria pagină Settings + propria tabelă config.
+
+### De ce regula
+- **Discoverability** — admin caută o singură pagină pentru toate setările PAFF, nu să umble prin 5 meniuri
+- **Audit/backup** — exporți o tabelă, nu N. Migrare între medii (dev/staging/prod) trivială
+- **Consistency** — convenții naming uniforme: `paff_telegram_token`, `paff_anaf_endpoint`, `paff_fan_api_key` — același prefix, același store
+- **DRY** — comune (timezone, default email, debug flag) declarate o dată
+
+### Pattern technic (de validat în research R-002)
+
+Două opțiuni în Odoo, decizia finală vine din research:
+
+**A. `res.config.settings` extension cu prefix `paff_*`**
+- Fiecare addon paff_X face `_inherit = 'res.config.settings'` și adaugă câmpuri cu prefix `paff_X_*`
+- Toate apar în Settings → General Settings sub tab dedicat "PAFF Configuration"
+- Stocate în `ir.config_parameter` cu key `paff_<addon>_<setting>`
+
+**B. Model dedicat `paff.config` (singleton TransientModel sau Model)**
+- Un singur model centralizat, toate addon-urile contribuie cu câmpuri prin `_inherit`
+- O singură pagină în UI (ex: Settings → PAFF Configuration), cu tabs per addon
+- Model query unitar: `env['paff.config'].get_param('telegram.token')`
+
+Decizia se ia după **R-002** din `docs/research-backlog.md`. Până atunci, **NU implementa** addon-uri noi care își fac propria pagină Settings — așteaptă pattern-ul agreed.
+
+### Reguli ferme până la R-002
+
+- **NU** crea pagini Settings separate per addon (`paff_telegram` cu propriul tab Settings, `paff_anaf` cu altul, etc.)
+- **NU** stoca credentials/tokens în câmpuri scattered prin model-uri (ex: `res.company.telegram_token`) — toate centralizate
+- **DA** folosește `ir.config_parameter` direct cu prefix `paff_*` ca interim până se decide A vs B
+- **DA** documentează fiecare variabilă nouă în `docs/configuration-vars.md` (TODO de creat la primul addon)
+
+### Convenții naming
+
+```
+paff_<addon_short>_<setting>
+
+Exemple:
+  paff_telegram_bot_token
+  paff_telegram_webhook_secret
+  paff_anaf_api_endpoint
+  paff_anaf_certificate_path
+  paff_fan_api_key
+  paff_netopia_signature_key
+```
+
+**NU**: `telegram_bot_token`, `paff.telegram.bot_token`, `TG_TOKEN` (mixed conventions = chaos)
+**NU**: variabile fără prefix `paff_` (conflict potential cu Odoo core sau OCA)
+
+### Secrets (token, API key, certificate password)
+
+- **Sensitive vars**: stocate în `ir.config_parameter` cu Odoo encryption + acces restricted la `base.group_system`
+- **Production**: alternativ, prin env var Docker (`.env`) → mai sigur (rotation Docker-managed) dar greu de UI-changed
+- **Decizia finală** (DB-stored vs env-var) vine din R-002
+
 ## Convenții Odoo 19 (PAFF)
 
 ### Structura addon-urilor custom (`src/addons/paff_*`)
@@ -161,6 +217,8 @@ paff_<modul>/
 - **NU folosi raw SQL** în models — folosește ORM, `cr.execute()` doar pentru migrări/performance cu comment
 - **NU hardcoda CIF/TVA/curs valutar** — folosește `res.config.settings` sau ANAF API
 - **NU instala dependencies cu `pip` în container** — adaugă în `docker/Dockerfile`
+- **NU crea pagini Settings/tabele config separate per addon** — vezi secțiunea `Configuration Centralization` (Regula PAFF #1)
+- **NU folosi nume variabile fără prefix `paff_<addon>_*`** — naming convention obligatoriu cross-addon
 
 ### Reguli ferme (ALWAYS)
 - Manifest version: `"19.0.X.Y.Z"` (Odoo version + addon semver)
@@ -169,6 +227,8 @@ paff_<modul>/
 - Vederi XML: `<tree>`, `<form>`, `<kanban>`, `<search>` — nu inline în Python
 - Docstrings în română, cod în engleză
 - Validări fiscale: cite ANAF API sau cui_registry (vezi `~/.claude/rules/research-agent-anti-hallucination.md` §5)
+- Configuration vars: prefix `paff_<addon>_*` + stocare centralizată (vezi `Configuration Centralization`)
+- Documentare config: orice variabilă nouă apare în `docs/configuration-vars.md` (lista master cross-addon)
 
 ## Integrare Medusa ↔ Odoo
 
@@ -304,6 +364,16 @@ git pull origin 19.0   # mereu clean — n-ai modificat nimic
 - `~/.claude/rules/architecture-principles.md` — Deep Modules + 4 categorii dependențe (Odoo = categoria 3)
 - `~/.claude/rules/research-agent-anti-hallucination.md` §5 — date fiscale RO obligatoriu cu sursă
 - `~/.claude/rules/docker-conventions.md` — `docker compose` v2, fără teardown distructiv
+
+## Research backlog
+
+Topice scoped dar neexecutate (research preliminar amânat):
+
+- **R-001 Telegram integration** — 3 use cases (notificări outgoing + bot bidirecțional + approval workflow). Library aleasă: `python-telegram-bot v21+`. Self-hosted, decizie deschisă webhook vs polling.
+- **R-002 Cross-addon shared config** — pattern Odoo pentru o singură pagină centrală + 1 tabelă DB pentru toate variabilele `paff_*`. **Architectural HIGH priority** — blochează design-ul oricărui nou addon.
+- **R-003 VPS deploy gaps** — verificare runbook `deploy-vps.md` vs. realitate Ubuntu 24 OVH.
+
+Detalii: [docs/research-backlog.md](docs/research-backlog.md). Format scoped (PROBLEMA / STACK / CE AM INCERCAT / CONSTRANGERI / plan execuție) ready pentru `/cauta` direct.
 
 ## Reference docs
 
