@@ -1,0 +1,44 @@
+# Production overrides — explicit pentru `docker compose -f compose.yml -f compose.prod.yml`.
+# Difference vs dev: workers ≥ 4, ports DOAR pe 127.0.0.1, resource limits, no source mounts.
+#
+# Deploy: vezi docs/runbooks/deploy-vps.md
+
+services:
+  postgres:
+    # NU expune port pe host în prod — doar accesibil din network paff-erp
+    # ports: []  # explicit override (compose v2 nu permite "" de array)
+    environment:
+      # Tuning Postgres pentru ERP load (4-8 GB RAM VPS recommended)
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=ro_RO.UTF-8"
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.0"
+        reservations:
+          memory: 512M
+
+  odoo:
+    ports:
+      # Doar 127.0.0.1 — nginx VPS face reverse proxy
+      - "127.0.0.1:8310:8069"
+      - "127.0.0.1:8312:8072"
+    environment:
+      ODOO_WORKERS: "4"
+      DEV_MODE: ""
+      PROXY_MODE: "True"
+    volumes:
+      # Read-only mount în prod — addons modificate doar prin git pull + restart
+      - ./src/addons:/mnt/extra-addons:ro
+      - ./src/addons-vendor:/mnt/extra-addons-vendor:ro
+      - ./patches:/opt/paff-patches:ro
+      - ./data/filestore:/var/lib/odoo
+      - ./config/odoo.conf:/etc/odoo/odoo.conf:ro
+      - ./logs:/var/log/odoo
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+          cpus: "2.0"
+        reservations:
+          memory: 1G

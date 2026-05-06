@@ -1,0 +1,27 @@
+# Dev overrides — auto-loaded de `docker compose up`.
+# NU comita modificări care expun secrete sau bind la 0.0.0.0 în prod.
+#
+# Pentru prod: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  postgres:
+    ports:
+      # Localhost only — accesibil din host pentru debugging psql
+      - "127.0.0.1:8301:5432"
+
+  odoo:
+    ports:
+      # HTTP main — accesibil din host pentru browser localhost
+      - "127.0.0.1:8310:8069"
+      # Longpolling (websocket pentru chat, notificări Odoo)
+      - "127.0.0.1:8312:8072"
+    environment:
+      # Dev mode: threaded (workers=0), reload pe modificare addon
+      ODOO_WORKERS: "0"
+      # Hot-reload pe addon files via inotify
+      DEV_MODE: "reload,qweb,werkzeug,xml"
+    volumes:
+      # Hot-reload addon-uri custom (read-write în dev, ro în prod)
+      - ./src/addons:/mnt/extra-addons
+      # Logs accesibile din host pentru tail/grep
+      - ./logs:/var/log/odoo
