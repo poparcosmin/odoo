@@ -65,37 +65,48 @@ if [[ -z "$changelog" ]]; then
 fi
 
 #─────────────────────────────────────────────────────────────────────────
-# TODO USER: severity classifier
+# Severity classifier — 3 niveluri pe baza changelog-ului upstream Odoo.
 #
-# Funcția clasifică update-ul în 3 niveluri pe baza changelog-ului.
-# Tu decizi ce keywords trigger ce nivel pentru PAFF.
+# Calibration history (update după primele 5-10 update-uri reale):
+#   2026-05-06 — initial keywords (Sonnet 4.7 propose, validated)
 #
-# Nivel 30 (security CVE) — urgent, alert imediat:
-#   ▸ "CVE-YYYY-NNNNN" în changelog
-#   ▸ "security", "vulnerability", "XSS", "SQL injection", "RCE"
-#   ▸ Issue referenced cu label `security` în upstream
-#
-# Nivel 20 (minor — important business logic):
-#   ▸ "fix" + cuvinte fiscale RO ("invoice", "tax", "VAT", "fiscal")
-#   ▸ "fix" în modulele `account/`, `stock/`, `sale/`, `purchase/`
-#   ▸ Schema migration referenced
-#
-# Nivel 10 (patch — minor, non-critic):
-#   ▸ Restul commit-urilor (refactors, doc updates, fixes în module ne-folosite)
-#
-# Default propus mai jos — ajustează după ce vezi 2-3 update-uri reale.
+# Pattern matching strategy: case-insensitive grep -E pe tot changelog-ul.
+# False positive risk: comentarii sau test fixtures care conțin keywords.
+# Acceptat fiindcă: better safe than sorry pe security + user reviewez
+# manual înainte de merge (Renovate PR cu checklist).
 #─────────────────────────────────────────────────────────────────────────
+
+# Severity 30 — Security CVE / urgent
+SEV30_PATTERN='CVE-[0-9]{4}-[0-9]+'
+SEV30_PATTERN+='|[Ss]ecurity (fix|advisory|patch|issue)'
+SEV30_PATTERN+='|[Vv]ulnerab(ility|le)'
+SEV30_PATTERN+='|XSS|CSRF|SSRF|XXE'
+SEV30_PATTERN+='|SQL.injection|command.injection'
+SEV30_PATTERN+='|RCE|[Aa]rbitrary.code.execution'
+SEV30_PATTERN+='|authentication.circumvent'
+SEV30_PATTERN+='|privilege.escalation'
+SEV30_PATTERN+='|[Ss]ecret (leak|exposure|disclosure)'
+
+# Severity 20 — Business logic critical (RO fiscal + ecommerce flow)
+SEV20_PATTERN='fix.*(invoice|tax|VAT|TVA|fiscal|ANAF|e.factura|SPV)'
+SEV20_PATTERN+='|fix.*(account\.move|account\.payment|account\.tax)'
+SEV20_PATTERN+='|fix.*(stock\.move|stock\.quant|stock\.picking)'
+SEV20_PATTERN+='|fix.*(sale\.order|purchase\.order|product\.template)'
+SEV20_PATTERN+='|fix.*(currency|exchange.rate)'
+SEV20_PATTERN+='|fix.*payment'
+SEV20_PATTERN+='|schema.migration'
+SEV20_PATTERN+='|[Bb]reaking.change'
+SEV20_PATTERN+='|deprecat(ed|ion)'
 
 classify_update() {
   local changelog_text="$1"
 
-  # TODO USER: ajustează keywords pe baza nevoilor PAFF
-  if echo "$changelog_text" | grep -qiE "CVE-[0-9]{4}-[0-9]+|security|vulnerab|XSS|SQL.injection|RCE|CSRF"; then
+  if echo "$changelog_text" | grep -qiE "$SEV30_PATTERN"; then
     echo "30"
     return
   fi
 
-  if echo "$changelog_text" | grep -qiE "fix.*(invoice|tax|VAT|fiscal|ANAF|account\.move|stock\.move|sale\.order|purchase\.order)"; then
+  if echo "$changelog_text" | grep -qiE "$SEV20_PATTERN"; then
     echo "20"
     return
   fi
