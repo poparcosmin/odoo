@@ -1,0 +1,69 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":timezone(Europe/Bucharest)"
+  ],
+  "schedule": ["before 06:00 on monday"],
+  "labels": ["dependencies", "automated"],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "docker": {
+    "pinDigests": true,
+    "enabled": true
+  },
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security", "urgent"],
+    "schedule": ["at any time"],
+    "automerge": false
+  },
+  "packageRules": [
+    {
+      "description": "Odoo runtime — group + manual review obligatoriu",
+      "matchPackageNames": ["odoo"],
+      "matchManagers": ["dockerfile"],
+      "groupName": "odoo-runtime",
+      "schedule": ["before 06:00 on monday"],
+      "labels": ["odoo-upstream", "needs-staging-test"],
+      "automerge": false,
+      "minimumReleaseAge": "3 days",
+      "prBodyTemplate": "## Odoo Upstream Update\n\n**REQUIRED before merge:**\n- [ ] Run `scripts/update-odoo.sh --target {{newVersion}} --dry-run`\n- [ ] Smoke test passes in staging\n- [ ] Review changelog: https://github.com/odoo/odoo/compare/{{currentVersion}}...{{newVersion}}\n- [ ] Verify no patches/* break against new version\n- [ ] Backup paff_prod DB before merging\n\n**Sunset check:** review patches/ folder for patches that may now be redundant.\n\n{{#if hasReleaseNotes}}### Release Notes\n{{releaseNotes}}{{/if}}"
+    },
+    {
+      "description": "PostgreSQL & Caddy — auto-PR weekly, manual merge",
+      "matchPackageNames": ["postgres", "caddy"],
+      "matchManagers": ["dockerfile", "docker-compose"],
+      "schedule": ["before 06:00 on monday"],
+      "labels": ["infrastructure"],
+      "automerge": false
+    },
+    {
+      "description": "Python deps în Dockerfile — auto-merge minor & patch",
+      "matchManagers": ["pip_requirements", "pep621"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": false,
+      "labels": ["python-deps"]
+    },
+    {
+      "description": "Major upgrades — never auto-merge, always require human review",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["major-upgrade", "needs-decision"]
+    }
+  ],
+  "regexManagers": [
+    {
+      "description": "Track ODOO_VERSION + ODOO_DIGEST în Dockerfile",
+      "fileMatch": ["^docker/Dockerfile$"],
+      "matchStrings": [
+        "ARG ODOO_VERSION=(?<currentValue>[0-9.]+)\\s*\\nARG ODOO_DIGEST=(?<currentDigest>sha256:[a-f0-9]+)"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "odoo",
+      "currentDigestTemplate": "{{currentDigest}}"
+    }
+  ]
+}

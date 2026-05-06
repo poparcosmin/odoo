@@ -1,0 +1,47 @@
+# PAFF Odoo — gitignore
+
+# === Layer 1: src/odoo/ are .git propriu (clone independent) ===
+# Excludem din parent repo, dar lăsăm folderul în VCS la primul clone manual.
+src/odoo/
+!src/odoo/.gitkeep
+
+# === Data layer (NU comitem date business sau backup-uri în VCS) ===
+# Pattern: glob conținut, păstrează .gitkeep (fără glob, parent dir ignored = totul omis)
+data/live/*
+data/backup/*
+data/filestore/*
+!data/live/.gitkeep
+!data/backup/.gitkeep
+!data/filestore/.gitkeep
+
+# === Logs ===
+logs/*
+!logs/.gitkeep
+
+# === Secrets — NICIODATĂ în VCS ===
+.env
+.env.local
+.env.*.local
+config/.env
+!config/.env.example
+
+# === Odoo runtime artifacts ===
+*.pyc
+__pycache__/
+*.egg-info/
+
+# === Editor / OS ===
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# === Docker ===
+docker/.docker-build-cache/
+
+# === Temp / staging ===
+*.bak
+*.tmp
+.patches-applied
