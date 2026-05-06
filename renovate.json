@@ -33,12 +33,13 @@
       "prBodyTemplate": "## Odoo Upstream Update\n\n**REQUIRED before merge:**\n- [ ] Run `scripts/update-odoo.sh --target {{newVersion}} --dry-run`\n- [ ] Smoke test passes in staging\n- [ ] Review changelog: https://github.com/odoo/odoo/compare/{{currentVersion}}...{{newVersion}}\n- [ ] Verify no patches/* break against new version\n- [ ] Backup paff_prod DB before merging\n\n**Sunset check:** review patches/ folder for patches that may now be redundant.\n\n{{#if hasReleaseNotes}}### Release Notes\n{{releaseNotes}}{{/if}}"
     },
     {
-      "description": "PostgreSQL & Caddy — auto-PR weekly, manual merge",
-      "matchPackageNames": ["postgres", "caddy"],
+      "description": "PostgreSQL — auto-PR weekly, manual merge (DB upgrade may need pg_upgrade)",
+      "matchPackageNames": ["postgres"],
       "matchManagers": ["dockerfile", "docker-compose"],
       "schedule": ["before 06:00 on monday"],
-      "labels": ["infrastructure"],
-      "automerge": false
+      "labels": ["infrastructure", "needs-pg-upgrade-check"],
+      "automerge": false,
+      "minimumReleaseAge": "7 days"
     },
     {
       "description": "Python deps în Dockerfile — auto-merge minor & patch",
