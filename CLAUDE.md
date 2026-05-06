@@ -11,16 +11,21 @@ Customizare Odoo 19 Community pentru deployment la `erp.paff.ro` și integrare c
 **Setup inițial necesar (TODO la primul checkout):**
 ```bash
 # Layer 1 — clone Odoo upstream READ-ONLY (vezi ADR 0001)
+# Plus submodule OCA/l10n-romania pentru localizare
+git clone --recurse-submodules <repo-url>
+# SAU dacă deja ai clonat:
+git submodule update --init --recursive
+
+# Layer 1 source (read-only, doar pentru IDE/grep)
 git clone --depth 1 --branch 19.0 https://github.com/odoo/odoo.git src/odoo
 
-# Pin digest la primul build (vezi ADR 0002)
-docker pull odoo:19.0
-docker inspect odoo:19.0 | jq -r '.[0].RepoDigests[0]'
-# Copiază digest-ul în docker/Dockerfile (ARG ODOO_DIGEST)
-
-# Copiază env template
+# Generate secrets în .env
 cp config/env.template .env
-# Completează valorile reale (master password, DB credentials, etc.)
+scripts/generate-secrets.sh --update
+
+# Build + start dev environment
+docker compose up -d
+docker compose logs -f odoo
 ```
 
 ## Three-Layer Isolation (Architecture)
@@ -52,37 +57,44 @@ Detalii: [docs/adr/0001-three-layer-isolation.md](docs/adr/0001-three-layer-isol
 ```
 /home/cosmin/Work/Odoo/
 ├── src/
-│   ├── odoo/              # READ-ONLY upstream (clone --depth 1 --branch 19.0)
-│   └── addons/            # PAFF custom: paff_*, l10n_ro_*
+│   ├── odoo/                    # READ-ONLY upstream (clone --depth 1 --branch 19.0)
+│   ├── addons/                  # PAFF custom: paff_* (write freely)
+│   └── addons-vendor/
+│       └── l10n-romania/        # OCA submodule (l10n_ro_*, 29 module)
 ├── data/
-│   ├── live/              # PostgreSQL data dir (volume Docker)
-│   ├── backup/            # GFS retention: daily(7) / weekly(4) / monthly(60)
-│   └── filestore/         # ⚠ Attachments PDF/imagini (NU în PG — backup separat)
+│   ├── live/                    # PostgreSQL data dir (volume Docker)
+│   ├── backup/                  # GFS retention: daily(7) / weekly(4) / monthly(60)
+│   └── filestore/               # ⚠ Attachments PDF/imagini (NU în PG — backup separat)
 ├── config/
-│   ├── odoo.conf          # workers, addons_path, env-substituted
-│   ├── env.template       # → copy to .env (gitignored)
-│   └── caddy/Caddyfile    # erp.paff.ro proxy + HTTPS + HSTS
+│   ├── odoo.conf                # workers, addons_path, env-substituted la entrypoint
+│   └── env.template             # → cp config/env.template .env (gitignored)
 ├── docker/
-│   ├── Dockerfile         # ARG ODOO_VERSION + ARG ODOO_DIGEST (pinned)
-│   ├── entrypoint.sh      # apply patches/ + wait postgres
-│   └── healthcheck.sh     # /web/health verification
+│   ├── Dockerfile               # FROM odoo:19.0-YYYYMMDD@sha256:... + locale ro_RO + tz Europe/Bucharest
+│   ├── entrypoint.sh            # envsubst odoo.conf + apply patches/ + wait postgres
+│   └── healthcheck.sh           # /web/health verification
+├── docker-compose.yml           # base config (Odoo + Postgres 17, networks, volumes)
+├── docker-compose.override.yml  # dev: ports localhost, hot-reload addons (auto-loaded)
+├── docker-compose.prod.yml      # prod: workers=4, 127.0.0.1 only, resource limits
 ├── scripts/
-│   ├── update-odoo.sh     # ⚠ TODO USER: smoke test conditions (vezi script)
-│   ├── check-odoo-update.sh  # ⚠ TODO USER: severity classifier (vezi script)
-│   ├── backup-db.sh       # pg_dump + tar filestore + GFS rotation
-│   └── restore-db.sh      # cu safety prompt obligatoriu
-├── patches/               # Layer 2 — README.md + .patch + .md per fiecare
+│   ├── init-db.sh               # creates DB + load lang ro_RO + install 17 module l10n_ro
+│   ├── generate-secrets.sh      # openssl rand pentru .env (master_password, db_password)
+│   ├── update-odoo.sh           # 8-test smoke suite + Dockerfile bump
+│   ├── check-odoo-update.sh     # daily cron: severity classifier (CVE/business/patch)
+│   ├── backup-db.sh             # pg_dump + tar filestore + GFS rotation
+│   └── restore-db.sh            # cu safety prompt obligatoriu
+├── patches/                     # Layer 2 — README.md + NNNN-titlu.{patch,md} per fiecare
 ├── docs/
-│   ├── adr/               # Architecture Decision Records
-│   ├── runbooks/          # upgrade.md, incident.md
-│   ├── templates/         # patch.md template
+│   ├── adr/                     # Architecture Decision Records
+│   ├── deploy/                  # nginx-erp-paff-ro.conf.example, systemd-paff-odoo.service, deploy-checklist.md
+│   ├── runbooks/                # upgrade.md, incident.md, deploy-vps.md
+│   ├── templates/               # patch.md template
 │   └── architecture.md
-├── contracts/             # OpenAPI/JSON Schema pentru Medusa↔Odoo port
-├── tests/                 # Integration tests cross-system
-├── logs/                  # gitignored
-├── renovate.json          # Renovate Bot config (pinDigests + CVE alerts)
+├── contracts/                   # OpenAPI/JSON Schema pentru Medusa↔Odoo port
+├── tests/                       # Integration tests cross-system
+├── logs/                        # gitignored
+├── renovate.json                # Renovate Bot config (pinDigests + CVE alerts)
 └── .claude/
-    ├── settings.json      # Hook config
+    ├── settings.json            # Hook config
     └── hooks/src-odoo-readonly-guard.sh
 ```
 
@@ -171,37 +183,61 @@ paff_<modul>/
 
 ### Dezvoltare locală
 ```bash
-# Start Odoo
-docker compose --profile erp up -d odoo
+# Generate secrets (prima dată)
+cp config/env.template .env
+scripts/generate-secrets.sh --update
+
+# Start dev environment (auto-loads docker-compose.override.yml)
+docker compose up -d
+
+# Init DB cu localizare RO + 17 module l10n_ro (~5-10 min)
+scripts/init-db.sh paff_dev
+
+# Browser: http://localhost:8310 → login admin/admin (SCHIMBĂ parola)
 
 # Logs live
 docker compose logs -f --tail=100 odoo
 
-# Update addon după modificări
-docker exec -it paff-odoo \
+# Update addon după modificări (paff_* sau OCA l10n_ro_*)
+docker exec paff-erp-odoo \
   odoo -c /etc/odoo/odoo.conf \
        -u paff_<modul> \
-       -d <db_name> \
+       -d paff_dev \
        --stop-after-init
 
 # Install addon nou
-docker exec -it paff-odoo \
+docker exec paff-erp-odoo \
   odoo -c /etc/odoo/odoo.conf \
        -i paff_<modul> \
-       -d <db_name> \
+       -d paff_dev \
        --stop-after-init
 
 # Tests addon
-docker exec -it paff-odoo \
+docker exec paff-erp-odoo \
   odoo --test-enable \
        --stop-after-init \
-       -d <db_test> \
+       -d paff_test \
        -i paff_<modul> \
        --log-level=test
 
 # Shell ORM debugging
-docker exec -it paff-odoo \
-  odoo shell -d <db_name> --no-http
+docker exec -it paff-erp-odoo \
+  odoo shell -d paff_dev --no-http
+```
+
+### Production (VPS)
+```bash
+# Detalii complete: docs/runbooks/deploy-vps.md
+# Pre-flight checklist: docs/deploy/deploy-checklist.md
+
+# Pe VPS, după setup inițial:
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# Update routine
+git pull origin main
+git submodule update --remote --merge
+docker compose -f docker-compose.yml -f docker-compose.prod.yml build odoo
+sudo systemctl restart paff-odoo
 ```
 
 ### Backup & Restore
@@ -242,25 +278,23 @@ git pull origin 19.0   # mereu clean — n-ai modificat nimic
 
 ## Mediu și porturi
 
-- Odoo dev: `http://localhost:8310` (host) → `:8069` (container)
-- Odoo prod: `https://erp.paff.ro` (Caddy reverse proxy + Let's Encrypt)
-- Odoo longpolling: port `8312` (host) → `:8072` (container)
-- PostgreSQL: `localhost:8301` — DB Odoo separat de DB Medusa (NU partaja schema)
+| Mediu | URL | Container port → Host bind |
+|---|---|---|
+| Odoo dev | `http://localhost:8310` | `:8069` → `127.0.0.1:8310` |
+| Odoo prod | `https://erp.paff.ro` (nginx VPS reverse proxy + Let's Encrypt) | `:8069` → `127.0.0.1:8310` |
+| Odoo longpolling | `127.0.0.1:8312` | `:8072` → `127.0.0.1:8312` |
+| PostgreSQL dev | `127.0.0.1:8301` (debugging psql) | `:5432` → `127.0.0.1:8301` |
+| PostgreSQL prod | NU expus pe host (network paff-erp doar) | — |
+
 - Master password Odoo: doar prin `.env` (NICIODATĂ în git)
+- Generate cu: `scripts/generate-secrets.sh --update`
+- Conflict port 8310: dacă rulezi simultan cu Ecommerce monorepo, oprește acel container întâi (`cd ~/Work/Ecommerce && docker compose stop odoo`)
 
-## TODO USER (locuri unde tu definești comportamentul)
+## TODO USER (locuri unde input-ul tău e valuable)
 
-Două locuri unde input-ul tău shape-uiește feature-ul:
-
-### 1. Smoke test conditions — `scripts/update-odoo.sh`
-Funcția `run_smoke_test()` are TODO marker pentru:
-- Threshold timeout startup (default 60s)
-- Asserții suplimentare după health endpoint (login admin? l10n_ro install? ANAF lookup?)
-
-### 2. Severity classifier — `scripts/check-odoo-update.sh`
-Funcția `classify_update()` are keywords default. Ajustează după primele 2-3 update-uri reale:
-- Adaugă cuvinte specifice business PAFF
-- Calibrează pragul "minor vs patch" pe ce vezi tu critic
+### Calibration după primele update-uri reale
+- `scripts/check-odoo-update.sh` — funcția `classify_update()` cu pattern-uri default. Ajustează după primele 2-3 update-uri reale ce s-au făcut realmente PAFF (cuvinte specifice business, pragul minor vs patch)
+- `scripts/update-odoo.sh` — funcția `run_smoke_test()` are 8 tests; adaugă tests funcționale (login admin, ANAF lookup) când rulezi în staging cu DB inițializată
 
 ## Reguli importante moștenite
 

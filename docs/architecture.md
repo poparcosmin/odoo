@@ -20,8 +20,8 @@ Vezi [ADR 0001](adr/0001-three-layer-isolation.md) pentru detalii complete.
                                    Internet
                                        │
                                   ┌────▼────┐
-                                  │  Caddy  │  HTTPS, HSTS, CSP
-                                  │ (proxy) │
+                                  │  Nginx  │  HTTPS, HSTS, CSP
+                                  │  (VPS)  │  managed extern, gestionat per-domeniu
                                   └────┬────┘
                                        │
                        ┌───────────────┼────────────────┐
@@ -29,17 +29,17 @@ Vezi [ADR 0001](adr/0001-three-layer-isolation.md) pentru detalii complete.
                   ┌────▼────┐    ┌─────▼─────┐    ┌─────▼─────┐
                   │paff.ro  │    │erp.paff.ro│    │admin.paff │
                   │(Medusa  │    │  (Odoo)   │    │   .ro     │
-                  │frontend)│    │           │    │(dashboard)│
+                  │frontend)│    │ this repo │    │(dashboard)│
                   └────┬────┘    └─────┬─────┘    └─────┬─────┘
                        │               │                │
                        │   JSON-RPC    │                │
                        └───────────────┼────────────────┘
                                        │
-                                  ┌────▼────┐
-                                  │PostgreSQL│  Multi-DB:
-                                  │  :8301  │  • medusa_db
-                                  └────┬────┘  • paff_prod (Odoo)
-                                       │       • paff_test
+                                  ┌────▼────────────┐
+                                  │ PostgreSQL 17   │  Per-stack DB:
+                                  │ paff-erp-postgres│  • paff_prod (acest repo)
+                                  └────┬────────────┘  • paff_test
+                                       │              (Medusa folosește alt PG)
                                        │
                               ┌────────┴────────┐
                               │   Filestore     │
@@ -47,6 +47,10 @@ Vezi [ADR 0001](adr/0001-three-layer-isolation.md) pentru detalii complete.
                               │  PDF, imagini)  │
                               └─────────────────┘
 ```
+
+**Production deploy**: nginx-ul VPS (Ubuntu 24, OVH) face SSL termination + reverse proxy la `127.0.0.1:8310`. Odoo + Postgres rulează în Docker Compose (`docker-compose.prod.yml`) izolat. SSL prin Let's Encrypt via certbot (auto-renewal).
+
+Detalii: [`docs/runbooks/deploy-vps.md`](runbooks/deploy-vps.md), [`docs/deploy/`](deploy/).
 
 ## Integrare Medusa ↔ Odoo
 

@@ -20,7 +20,23 @@ FROM odoo:${ODOO_VERSION}@${ODOO_DIGEST}
 
 USER root
 
-# Dependencies suplimentare PAFF (verificate cu /vibe-debt-audit)
+# Locale ro_RO.UTF-8 pentru Romania-specific formatting (date, currency, CIF)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+         locales tzdata gettext-base \
+    && sed -i -e 's/# ro_RO.UTF-8 UTF-8/ro_RO.UTF-8 UTF-8/' /etc/locale.gen \
+    && locale-gen ro_RO.UTF-8 \
+    && update-locale LANG=ro_RO.UTF-8 \
+    && ln -fs /usr/share/zoneinfo/Europe/Bucharest /etc/localtime \
+    && dpkg-reconfigure -f noninteractive tzdata \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV LANG=ro_RO.UTF-8 \
+    LANGUAGE=ro_RO:ro \
+    LC_ALL=ro_RO.UTF-8 \
+    TZ=Europe/Bucharest
+
+# Dependencies Python suplimentare PAFF
 # uuid-utils: generare UUID v7 pentru chei externe stabile
 # qrcode[pil]: QR pe facturi e-Factura SPV
 RUN pip install --no-cache-dir --break-system-packages \

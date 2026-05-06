@@ -1,0 +1,77 @@
+# PAFF Odoo — base docker compose
+# Comenzi:
+#   Dev:  docker compose up -d                                  (auto-loads docker-compose.override.yml)
+#   Prod: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Architectura: Three-Layer Isolation (vezi docs/adr/0001-three-layer-isolation.md)
+# Pinning:      Dockerfile ARG ODOO_DIGEST (vezi docs/adr/0002-upstream-pinning-policy.md)
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: paff-erp-postgres
+    environment:
+      POSTGRES_DB: ${ODOO_DB_NAME:-paff_prod}
+      POSTGRES_USER: ${ODOO_DB_USER:-odoo_user}
+      POSTGRES_PASSWORD: ${ODOO_DB_PASSWORD}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - ./data/live:/var/lib/postgresql/data
+    networks:
+      - paff-erp
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ODOO_DB_USER:-odoo_user} -d ${ODOO_DB_NAME:-paff_prod}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  odoo:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: paff-odoo:local
+    container_name: paff-erp-odoo
+    environment:
+      HOST: postgres
+      PORT: "5432"
+      USER: ${ODOO_DB_USER:-odoo_user}
+      PASSWORD: ${ODOO_DB_PASSWORD}
+      ODOO_RC: /etc/odoo/odoo.conf
+      ADMIN_PASSWORD: ${ODOO_MASTER_PASSWORD}
+      LANG: ro_RO.UTF-8
+      LC_ALL: ro_RO.UTF-8
+      TZ: Europe/Bucharest
+    volumes:
+      # Layer 3 — addon-uri PAFF custom (write freely)
+      - ./src/addons:/mnt/extra-addons:ro
+      # OCA l10n-romania (read-only, gestionat prin submodule)
+      - ./src/addons-vendor:/mnt/extra-addons-vendor:ro
+      # Layer 2 — patches (aplicate la entrypoint)
+      - ./patches:/opt/paff-patches:ro
+      # Filestore (attachments, NU sunt în PG)
+      - ./data/filestore:/var/lib/odoo
+      # Config
+      - ./config/odoo.conf:/etc/odoo/odoo.conf:ro
+    networks:
+      - paff-erp
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  paff-erp:
+    name: paff-erp-net
+    driver: bridge

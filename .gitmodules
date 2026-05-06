@@ -1,0 +1,3 @@
+[submodule "src/addons-vendor/l10n-romania"]
+	path = src/addons-vendor/l10n-romania
+	url = https://github.com/OCA/l10n-romania.git

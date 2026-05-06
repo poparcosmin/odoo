@@ -53,7 +53,40 @@ wait_for_postgres() {
   echo "[paff] PostgreSQL ready."
 }
 
+render_odoo_conf() {
+  local src="${ODOO_RC:-/etc/odoo/odoo.conf}"
+  local rendered="/tmp/odoo.conf.rendered"
+
+  if [[ ! -f "$src" ]]; then
+    echo "[paff] WARNING: $src not found, skipping envsubst" >&2
+    return 0
+  fi
+
+  # Default values pentru variabile lipsă (evităm Odoo crash pe ${VAR} literal)
+  : "${ODOO_DB_HOST:=postgres}"
+  : "${ODOO_DB_PORT:=5432}"
+  : "${ODOO_DB_USER:=odoo_user}"
+  : "${ODOO_DB_NAME:=paff_prod}"
+  : "${ODOO_DB_PASSWORD:?ODOO_DB_PASSWORD must be set in .env}"
+  : "${ODOO_MASTER_PASSWORD:?ODOO_MASTER_PASSWORD must be set in .env}"
+  : "${ODOO_WORKERS:=0}"
+  : "${ODOO_LIMIT_MEMORY_SOFT:=2147483648}"
+  : "${ODOO_LIMIT_MEMORY_HARD:=2684354560}"
+  : "${ODOO_LIMIT_TIME_CPU:=600}"
+  : "${ODOO_LIMIT_TIME_REAL:=1200}"
+
+  export ODOO_DB_HOST ODOO_DB_PORT ODOO_DB_USER ODOO_DB_NAME ODOO_DB_PASSWORD \
+         ODOO_MASTER_PASSWORD ODOO_WORKERS \
+         ODOO_LIMIT_MEMORY_SOFT ODOO_LIMIT_MEMORY_HARD \
+         ODOO_LIMIT_TIME_CPU ODOO_LIMIT_TIME_REAL
+
+  envsubst < "$src" > "$rendered"
+  export ODOO_RC="$rendered"
+  echo "[paff] Rendered config: $rendered (workers=$ODOO_WORKERS)"
+}
+
 apply_patches
+render_odoo_conf
 wait_for_postgres
 
 exec "$@"

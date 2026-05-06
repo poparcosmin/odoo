@@ -1,0 +1,42 @@
+# systemd unit for PAFF Odoo (managed via docker compose)
+#
+# Install:
+#   sudo cp docs/deploy/systemd-paff-odoo.service /etc/systemd/system/paff-odoo.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable paff-odoo.service
+#   sudo systemctl start paff-odoo.service
+#
+# Manage:
+#   sudo systemctl status paff-odoo
+#   sudo systemctl restart paff-odoo
+#   sudo journalctl -u paff-odoo -f      # live logs
+#
+# Adjust WorkingDirectory + User dacă instalezi în alt path / alt user.
+
+[Unit]
+Description=PAFF Odoo ERP (Docker Compose)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=cosmin
+WorkingDirectory=/home/cosmin/web/erp.paff.ro
+
+# Read .env for compose variable substitution
+EnvironmentFile=/home/cosmin/web/erp.paff.ro/.env
+
+# Start: pulled compose pulls images dacă nu sunt local
+ExecStartPre=/usr/bin/docker compose -f docker-compose.yml -f docker-compose.prod.yml pull --quiet
+ExecStart=/usr/bin/docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+ExecStop=/usr/bin/docker compose -f docker-compose.yml -f docker-compose.prod.yml down
+
+# Restart conditions
+Restart=on-failure
+RestartSec=30s
+TimeoutStartSec=300s
+
+[Install]
+WantedBy=multi-user.target
