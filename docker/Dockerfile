@@ -37,11 +37,15 @@ ENV LANG=ro_RO.UTF-8 \
     TZ=Europe/Bucharest
 
 # Dependencies Python suplimentare PAFF
-# uuid-utils: generare UUID v7 pentru chei externe stabile
+# uuid-utils:  generare UUID v7 pentru chei externe stabile
 # qrcode[pil]: QR pe facturi e-Factura SPV
+# num2words:   text representation pentru sume monetare (l10n_ro_*)
+# packaging:   parser pentru external dependency declarations (Odoo manifests)
 RUN pip install --no-cache-dir --break-system-packages \
       uuid-utils \
-      "qrcode[pil]"
+      "qrcode[pil]" \
+      num2words \
+      packaging
 
 # Aplicare patches (Layer 2 din Three-Layer Isolation)
 # Vezi patches/README.md pentru convenția NNNN-titlu.patch
