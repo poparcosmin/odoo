@@ -410,7 +410,7 @@ TOTAL REVISED                   ~25-30h distribuit pe 4-5 sesiuni de ~5-6h each
 |---|---|---|---|
 | **DEC-A** | VPS dimension target | ✅ RESOLVED | **8GB OVH** (sweet spot — workers=4 + PG tuning + buffer) |
 | **DEC-B** | OCA 19.0 strategy | ✅ RESOLVED | **A. Wait OCA 19.0 port** — verify branch existence când ajungem la Phase 2; defer T1/T2/T3 ca R-009 dacă nu există |
-| **DEC-C** | Staging environment | ✅ RESOLVED | **B. Separate VPS** — fidelity max, zero risc corupție prod (cost extra €5-10/lună) |
+| **DEC-C** | Staging environment | ✅ RESOLVED v2 | **A. Same Docker DB local** (REVISED 2026-05-07: VPS deferred la final) — staging temp pe acelaşi Docker stack ca paff_prod, separate DB `paff_staging`. Promote la separate VPS în Phase 3 final |
 | **DEC-D** | Maintenance windows | ✅ RESOLVED | **Sunday 02:00-04:00 RO** — zero traffic B2B (cabinet contabilitate + vânzători nu lucrează) |
 | ~~D8~~ | ~~Scheduled action monitoring~~ | ✅ closed | duplicate cu B6 |
 | **D3** | Customer portal scope | ⏳ deferred | rezolvăm la Phase 3 când ajungem la T5 |
@@ -419,12 +419,18 @@ TOTAL REVISED                   ~25-30h distribuit pe 4-5 sesiuni de ~5-6h each
 | **D6** | Activity Types timing | ⏳ deferred | rezolvăm la Phase 2 când ajungem la T6 |
 | **D7** | DB role separation timing | ⏳ deferred | rezolvăm la Phase 1 când ajungem la B5 |
 
-### Implications DEC-C separate VPS staging
+### Implications DEC-C revizat — Docker local staging
 
-Adaugat la Phase 0:
-- **P0.0 — VPS staging provision** (~30 min, NEW): provision OVH separate VPS pentru staging environment. Recommended size: 4GB (jumătate prod, sufficient testing). Same Ubuntu 24.04 LTS + Docker.
-- **P0.5 — Sync prod → staging procedure** (~15 min, NEW): script `scripts/sync-prod-to-staging.sh` — rsync backup + restore weekly. Manual trigger pentru ad-hoc testing.
-- **Cost impact**: +€5-10/lună pentru staging VPS (acceptabil pentru fidelity max)
+User decision 2026-05-07: VPS deferred la Phase 3 final. Folosim **Docker local staging temp** acum.
+- **P0.0 SKIP** — no VPS provision needed acum
+- **P0.1 SKIP** — VPS sizing inventory deferred la Phase 3
+- **P0.2-P0.4 active** pe acelaşi Docker stack (`paff_staging` DB pe paff-erp-postgres existing)
+- Phase 3 VPS deploy = unicul loc unde VPS apare; promotion la separate VPS atunci
+
+Trade-offs acceptate:
+- ✅ Phase 0 + 1 + 2 pot avansa imediat fără cost extra
+- ⚠️ Risc minim: paff_staging DB ON same Docker = un postgres crash afectează ambele. Mitigare: backup pipeline existent (3-2-1 cu Google Drive) + monthly verify-backup
+- ⚠️ Phase 3 VPS deploy va trebui re-validate în staging real VPS atunci
 
 ## Cross-references
 

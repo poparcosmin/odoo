@@ -76,24 +76,30 @@ docker exec -i paff-erp-postgres \
 # Step 3: Filestore restore
 #─────────────────────────────────────────────────────────────────────────
 if [[ -f "${BACKUP_PATH}/filestore.tar.gz" ]]; then
-  echo "[restore] Step 3/3: filestore restore (via docker exec) ..."
+  echo "[restore] Step 3/3: filestore restore (via docker exec, scratch dir) ..."
   ORIG_DB=$(awk '/^db_name:/ {print $2}' "${BACKUP_PATH}/MANIFEST")
+  SCRATCH_DIR="/tmp/restore-filestore-$$"
 
-  # Cleanup target filestore dir în container
+  # CRITICAL: cleanup ONLY target. NU șterge ORIG_DB (poate fi acelaşi Docker
+  # stack ca prod live). Bug fix 2026-05-07.
   docker exec paff-erp-odoo \
-    rm -rf "/var/lib/odoo/filestore/${TARGET_DB}" "/var/lib/odoo/filestore/${ORIG_DB}"
+    rm -rf "/var/lib/odoo/filestore/${TARGET_DB}"
 
-  # Untar via stdin pipe to container
+  # Untar în SCRATCH dir izolat (NU peste /var/lib/odoo/filestore real)
+  docker exec paff-erp-odoo mkdir -p "$SCRATCH_DIR"
   docker exec -i paff-erp-odoo \
-    tar xzf - -C /var/lib/odoo/filestore \
+    tar xzf - -C "$SCRATCH_DIR" \
     < "${BACKUP_PATH}/filestore.tar.gz"
 
-  # Rename dir dacă target != original
+  # Move din scratch (mereu numit ORIG_DB în tar) la target
+  docker exec paff-erp-odoo \
+    mv "${SCRATCH_DIR}/${ORIG_DB}" "/var/lib/odoo/filestore/${TARGET_DB}"
   if [[ "$ORIG_DB" != "$TARGET_DB" ]]; then
-    docker exec paff-erp-odoo \
-      mv "/var/lib/odoo/filestore/${ORIG_DB}" "/var/lib/odoo/filestore/${TARGET_DB}"
-    echo "[restore]   Renamed filestore: $ORIG_DB → $TARGET_DB"
+    echo "[restore]   Filestore copied scratch → ${TARGET_DB} (orig=${ORIG_DB} preserved)"
   fi
+
+  # Cleanup scratch dir
+  docker exec paff-erp-odoo rm -rf "$SCRATCH_DIR"
 elif [[ -f "${BACKUP_PATH}/.no-filestore" ]]; then
   echo "[restore] Step 3/3: skipped (backup had no filestore)"
 else
