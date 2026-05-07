@@ -420,6 +420,39 @@ User a ales B (custom addon mai târziu). Trigger: prima factură EUR/USD reală
 
 ---
 
+## R-009 — `mis_builder` deferred until OCA 19.0 port
+
+**Status:** scoped, deferred (verified 2026-05-07: NO 19.0 branch în `OCA/mis-builder`)
+**Priority:** medium (replacement available)
+**Trigger pentru reluare:** monthly check `OCA/mis-builder` branches; install când 19.0 disponibil
+
+### Context
+
+Plan v2 Phase 2 Batch B intenționa install `mis_builder` + `mis_builder_cash_flow` (custom P&L/Balance Sheet/Cash Flow cu formule configurabile). Verificare 2026-05-07: branch 19.0 NU există în `OCA/mis-builder` (doar 10/16/17/18 active).
+
+### Replacement applied
+
+Installed **`account_financial_report`** din `OCA/account-financial-reporting/19.0` (alt module în acelaşi repo, NU custom formule dar built-in P&L + Balance + Aging + General Ledger). Acoperă 80% din use case-urile pentru cabinet contabilitate.
+
+Trade-off: `mis_builder` permite formule custom (KPI-uri specifice carton, marjă pe categorie). `account_financial_report` e standard accounting reports. Fine pentru launch + 6 luni.
+
+---
+
+## R-010 — `web_widget_color` alternative (native Odoo tags)
+
+**Status:** closed (not needed)
+**Priority:** low
+
+### Context
+
+Plan v2 T3 menționa `web_widget_color` pentru color tags pe partneri. Verificare 2026-05-07: NU în `OCA/web/19.0`.
+
+### Resolution
+
+Native Odoo `res.partner.category_ids` (Tags) cu `color` field (10 built-in colors) acoperă use case. NU mai e nevoie de OCA module separate.
+
+---
+
 ## Convenție backlog
 
 - **Format ID**: `R-NNN` cu padding 3 cifre (R-001, R-002, ...)
