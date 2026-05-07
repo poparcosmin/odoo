@@ -2,12 +2,12 @@
 # notify.sh — send notification via Telegram + Gmail SMTP.
 #
 # Required env vars (load din .env or pass explicit):
-#   PAFF_TG_BOT_TOKEN   — Telegram bot token from @BotFather
-#   PAFF_TG_CHAT_ID     — Telegram chat ID where bot posts (your DM or group)
-#   PAFF_NOTIFY_EMAIL   — recipient email (paff.office@gmail.com)
-#   PAFF_SMTP_USER      — Gmail account (sender)
-#   PAFF_SMTP_PASS      — Gmail App Password (16-char, NOT regular password)
-#                         Generate at: myaccount.google.com/apppasswords
+#   PAFF_TG_BOT_TOKEN     — Telegram bot token from @BotFather
+#   PAFF_TG_CHAT_ID       — Telegram chat ID where bot posts (your DM or group)
+#   GMAIL_APP_PASSWORD    — Gmail App Password (16-char, NOT regular password)
+#                           Generate at: myaccount.google.com/apppasswords
+#   PAFF_NOTIFY_EMAIL     — recipient email (default: paff.office@gmail.com)
+#   PAFF_SMTP_USER        — Gmail sender (default: paff.office@gmail.com)
 #
 # Usage:
 #   scripts/notify.sh "Subject" "Body text"
@@ -68,15 +68,20 @@ else
 fi
 
 # ─── Email via Python smtplib ──────────────────────────────────────────
-if [[ -n "${PAFF_SMTP_USER:-}" && -n "${PAFF_SMTP_PASS:-}" && -n "${PAFF_NOTIFY_EMAIL:-}" ]]; then
+# Defaults pentru sender + recipient (override doar dacă user vrea altceva)
+SMTP_USER="${PAFF_SMTP_USER:-paff.office@gmail.com}"
+NOTIFY_EMAIL="${PAFF_NOTIFY_EMAIL:-paff.office@gmail.com}"
+SMTP_PASS="${GMAIL_APP_PASSWORD:-}"
+
+if [[ -n "$SMTP_PASS" ]]; then
   python3 - <<PYEOF 2>&1 || echo "[notify] ✗ Email failed" >&2
 import smtplib, ssl
 from email.message import EmailMessage
-import os, sys
+import sys
 
 msg = EmailMessage()
-msg['From']    = '${PAFF_SMTP_USER}'
-msg['To']      = '${PAFF_NOTIFY_EMAIL}'
+msg['From']    = '${SMTP_USER}'
+msg['To']      = '${NOTIFY_EMAIL}'
 msg['Subject'] = '${ICON} [PAFF] ${SUBJECT}'
 msg.set_content(r"""${BODY}
 
@@ -88,13 +93,13 @@ Severity: ${SEVERITY}
 ctx = ssl.create_default_context()
 try:
     with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=ctx) as s:
-        s.login('${PAFF_SMTP_USER}', '${PAFF_SMTP_PASS}')
+        s.login('${SMTP_USER}', '${SMTP_PASS}')
         s.send_message(msg)
-    print('[notify] ✓ Email delivered to ${PAFF_NOTIFY_EMAIL}')
+    print('[notify] ✓ Email delivered to ${NOTIFY_EMAIL}')
 except Exception as e:
     print(f'[notify] ✗ Email failed: {e}', file=sys.stderr)
     sys.exit(1)
 PYEOF
 else
-  echo "[notify] ⚠ Email skipped (PAFF_SMTP_* / PAFF_NOTIFY_EMAIL not set)"
+  echo "[notify] ⚠ Email skipped (GMAIL_APP_PASSWORD not set in .env)"
 fi
