@@ -265,6 +265,161 @@ CONSTRANGERI:
 
 ---
 
+## R-005 — Custom QWeb pentru afișare doar serie+număr pe PDF (paff_invoice_serial)
+
+**Status:** scoped, blocking pentru lansare facturi B2B (UX clienți)
+**Priority:** medium (cosmetic, dar relevant la primii clienți)
+**Trigger:** după ETAPA 2 (sequence config aplicat 2026-05-07)
+
+### Context
+
+Cerința user: factura tipărită PDF arată doar `PAFF00001`, dar intern Odoo numele e `FAC/PAFF00001` (cu prefix tip document). Nu există feature out-of-the-box — Odoo afișează `account.move.name` integral pe PDF.
+
+### Plan execuție
+
+```
+1. Creez addon paff_invoice_serial cu manifest 19.0.1.0.0
+2. Models: NU adaug field nou — folosesc compute pe regex split din name:
+   def _compute_paff_doc_serial(self):
+       for move in self:
+           m = re.match(r'^FAC/(PAFF\d+)$', move.name or '')
+           move.paff_doc_serial = m.group(1) if m else move.name
+3. Override report template:
+   <template id="report_invoice_document_paff" inherit_id="account.report_invoice_document">
+       <xpath expr="//span[@t-field='o.name']" position="replace">
+           <span t-field="o.paff_doc_serial"/>
+       </xpath>
+   </template>
+4. Same pattern pentru email template invoice_send
+5. Tests: posted invoice cu name='FAC/PAFF12346' → PDF arată 'PAFF12346'
+```
+
+### Constrângeri
+
+- DEPENDS R-002 — Configuration Centralization (poate paff_doc_serial pe field config)
+- Compatibilitate l10n_ro_account_report_invoice (deja instalat) — verifică override conflict
+
+---
+
+## R-006 — Sequences DVZ + CHT + STO + alte tipuri document
+
+**Status:** scoped
+**Priority:** medium (depinde de când lansăm primele oferte/chitanțe)
+
+### Context
+
+User a definit pattern multi-prefix:
+- `FAC/PAFF<NNNNN>` — factură (out_invoice) ✅ aplicat 2026-05-07
+- `DVZ/PAFF<NNNNN>` — deviz / ofertă (sale.order) — TODO
+- `CHT/PAFF<NNNNN>` — chitanță (account.payment, type='inbound') — TODO
+- `STO/PAFF<NNNNN>` — storno / ramburs (out_refund) — TODO
+- Alte tipuri posibile: BON (bon consum), AVZ (aviz expediție), NIR (notă recepție)
+
+### Plan execuție
+
+```
+1. sale.order journal — sequence_override_regex DVZ/PAFF\d{5}
+2. account.payment — sequence per type (inbound=CHT, outbound=PLT)
+3. out_refund — separate journal SALES_REFUND code STO, regex STO/PAFF\d{5}
+4. ir.sequence pentru BON, AVZ, NIR (stock pickings)
+5. Decision: număr separat per prefix, SAU global counter? (User: per prefix probabil)
+```
+
+### Decizii deschise
+
+- Storno preia număr nou (STO/PAFF12347) sau referențiază factura originală (FAC/PAFF12346 → STO/PAFF12346)?
+- Documente intracom (auto-factură intracom) — alt prefix?
+
+---
+
+## R-008 — SAF-T D406 export evaluation (third-party module sau custom)
+
+**Status:** scoped, blocking pentru obligație fiscală anuală
+**Priority:** HIGH (D406 mandatory anual din 2022 pentru toate companiile RO)
+**Trigger:** decembrie 2026 (prima D406 PAFF în Odoo va fi pentru anul 2026)
+
+### Context
+
+PAFF e obligată legal să depună D406 SAF-T (Standard Audit File for Tax) anual până 31 ianuarie pentru anul precedent. Format XML strict OECD + extensii ANAF. L10n_ro Community + OCA NU oferă această capability.
+
+### Alternative considerate
+
+```
+A. l10n_ro_saft third-party (Forest&Bytes / Forest IT — €€€ commercial)
+   - Pro: maintained, ready-to-use, suport tehnic
+   - Contra: cost recurent, dependent vendor
+
+B. DUKIntegrator (tool Java desktop ANAF official, GRATIS)
+   - Pro: emisă de ANAF, garantat compliant
+   - Contra: extract manual din Odoo Excel → import în DUKIntegrator → review → upload
+   - Effort: ~3-4h pe an pentru o singură companie
+
+C. paff_saft_d406 custom addon (50-100h development)
+   - Pro: integrare nativă Odoo, control total
+   - Contra: development effort + mentenanță anuală (ANAF schimbă schema XML)
+
+D. OCA l10n_ro_saft (dacă apare în 2026 — current: NU există)
+   - Watch: github.com/OCA/l10n-romania PRs pentru saft
+```
+
+### Plan execuție (Q4 2026)
+
+```
+1. Verifică status OCA — există PR pentru l10n_ro_saft?
+2. Eval Forest&Bytes pricing (request quote pentru SRL B2B)
+3. Test DUKIntegrator pe anul 2026 cu dataset complet PAFF
+4. Decide based on:
+   - Volum facturi (dacă < 1000/an → DUKIntegrator OK)
+   - Buget (dacă există > €500/an → third-party)
+   - Strategie long-term (multi-company viitor → custom worth)
+```
+
+### Constrângeri
+
+- ANAF schimbă schema XML SAF-T anual (versionare D406)
+- Tax codes Odoo trebuie mapped EXACT pe ANAF tax codes
+- Stock movements TREBUIE incluse (transferuri intern + adjustments)
+
+---
+
+## R-007 — paff_bnr_currency addon (BNR sync zilnic)
+
+**Status:** scoped, deferred până la prima factură EUR/USD
+**Priority:** low (PAFF emite RAR factură valută)
+
+### Context
+
+User confirmat 2026-05-07: PAFF emite "foarte rar in euro". Custom addon e overkill ACUM, dar inevitable când apare nevoie.
+
+### Plan execuție
+
+```
+1. Manifest 19.0.1.0.0, depends ['base', 'l10n_ro_config']
+2. ir.cron @ daily 12:00 RO time
+3. Fetch https://www.bnr.ro/nbrfxrates.xml (XML public, no auth)
+4. Parse XML cu lxml, extract currency code + rate
+5. Update res.currency.rate cu name=date, rate=value, currency_id=match
+6. Audit: post mail.message pe res.company cu rezumat update
+7. Error handling: timeout 30s, fallback la curs anterior dacă XML lipsa
+8. Tests: mock BNR XML response, verify rate update
+```
+
+### Alternative considerate
+
+- A. OCA `currency_rate_update` + `currency_rate_update_RO_BNR` — submodule extra, scalabil
+- B. Custom paff_bnr_currency (50 LOC) — minimal, controlăm
+- C. Bash cron extern + curl + psql — out-of-band, NO audit Odoo
+
+User a ales B (custom addon mai târziu). Trigger: prima factură EUR/USD reală în paff_prod.
+
+### Constrângeri
+
+- BNR publică curs Luni-Vineri, NU weekenduri/sărbători legale → cron daily rulat dar update doar dacă XML are data zilei curente
+- Rate de "azi" e folosit pentru facturi de "mâine" (consistency T-1)
+- Câteva monede minore (HUF, JPY, etc.) BNR le publică doar săptămânal — handle absence
+
+---
+
 ## Convenție backlog
 
 - **Format ID**: `R-NNN` cu padding 3 cifre (R-001, R-002, ...)

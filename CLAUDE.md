@@ -359,6 +359,38 @@ git pull origin 19.0   # mereu clean — n-ai modificat nimic
 - `scripts/check-odoo-update.sh` — funcția `classify_update()` cu pattern-uri default. Ajustează după primele 2-3 update-uri reale ce s-au făcut realmente PAFF (cuvinte specifice business, pragul minor vs patch)
 - `scripts/update-odoo.sh` — funcția `run_smoke_test()` are 8 tests; adaugă tests funcționale (login admin, ANAF lookup) când rulezi în staging cu DB inițializată
 
+### Workflow lunar declarații TVA (D300/D394) — manual prin SPV
+
+L10n_ro Community NU exportă D300/D390/D394 direct (modul Enterprise feature). Workflow real:
+
+1. **Final lună fiscală N** (până în 25 ale lunii N+1):
+   - Odoo: Accounting → Reports → Tax Report → filter `Date Range = Month N` → click Export
+   - Verifică totaluri: TVA colectat (21% sale), TVA deductibil (21% purchase), de plată/recuperat
+2. **ANAF SPV** (browser cu USB token, NU programatic):
+   - D300 — completează manual cu valorile din raport (cca 40 câmpuri)
+   - D394 — upload XML facturi B2B (genere manual sau DUKIntegrator de la ANAF)
+   - D390 — DOAR dacă există intracom (rar pentru PAFF cartoane)
+3. **Înapoi în Odoo** (după ce ANAF acceptă declarația):
+   - Settings → Accounting → set `Tax Lock Date = ultima zi luna N`
+   - Asta blochează editare facturi din perioada deja declarată
+4. **D406 SAF-T anual** (până 31 ianuarie pentru anul precedent):
+   - Vezi R-008 în research-backlog: l10n_ro_saft third-party / DUKIntegrator / custom
+
+⚠️ Lock date se setează DUPĂ confirmarea ANAF, NU înainte. Dacă ANAF cere modificări, ai nevoie să poți edita facturi din perioada respectivă.
+
+### PRIMA factură reală — set name manual o singură dată
+Sequence factură PAFF e configurat (journal Sales code='FAC', regex `FAC/PAFF\d{5}`), dar Odoo 19 NU oferă "starting number" config. La PRIMA factură creată în paff_prod:
+
+1. Sales / Invoicing → Customers → Invoices → **+ New Invoice**
+2. Adaugă partener client + linie produs
+3. **ÎNAINTE de Confirm/Post**: editează câmpul `Number` (default va fi `Draft Invoice`) la **`FAC/PAFF12346`**
+4. Click **Confirm** — invoice posted cu name `FAC/PAFF12346`
+5. La a 2-a factură: Odoo detectează pattern-ul, auto-generează `FAC/PAFF12347`. Restul moștenesc.
+
+⚠️ Dacă la pasul 3 lași numele default (`INV/2026/00001`), pattern-ul se rupe → reset sequence + lockdown manual ANAF compliance issue. **MUST be `FAC/PAFF12346` pe prima factură.**
+
+Continuare numerotare (NU reset annually, NU date_range): factura 12345 din 2025 (alt software) → 12346 în Odoo, 12347... peste anii 2027, 2028...
+
 ## Reguli importante moștenite
 
 - `~/.claude/CLAUDE.md` — workflow global (Plan First, Branch Management R1-R6, Package Management)
