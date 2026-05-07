@@ -420,3 +420,4 @@ Detalii: [docs/research-backlog.md](docs/research-backlog.md). Format scoped (PR
 - [Runbook — Incident](docs/runbooks/incident.md)
 - [Patches workflow](patches/README.md)
 - [Patch template](docs/templates/patch.md)
+- [Permissions Matrix](docs/permissions-matrix.md) — 4 roluri (Vânzător/Operator, Contabil, Manager, Admin) + CRUD matrix + workflow approval + MFA policy
