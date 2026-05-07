@@ -219,6 +219,8 @@ paff_<modul>/
 - **NU instala dependencies cu `pip` în container** — adaugă în `docker/Dockerfile`
 - **NU crea pagini Settings/tabele config separate per addon** — vezi secțiunea `Configuration Centralization` (Regula PAFF #1)
 - **NU folosi nume variabile fără prefix `paff_<addon>_*`** — naming convention obligatoriu cross-addon
+- **NU instala module `website*`, `theme_*`, `mass_mailing`, `survey`** — PAFF e pure ERP (storefront e Medusa la paff.ro). Vezi [ADR 0003](docs/adr/0003-pure-erp-no-website.md). Excepție: ADR nou care anulează 0003.
+- **NU declara `depends: ['website']`** în manifest paff_* addon — PR review reject automat. Pentru portal B2B (My Invoices) folosește `portal` care e instalat.
 
 ### Reguli ferme (ALWAYS)
 - Manifest version: `"19.0.X.Y.Z"` (Odoo version + addon semver)
@@ -343,12 +345,13 @@ git pull origin 19.0   # mereu clean — n-ai modificat nimic
 | Odoo dev | `http://localhost:8310` | `:8069` → `127.0.0.1:8310` |
 | Odoo prod | `https://erp.paff.ro` (nginx VPS reverse proxy + Let's Encrypt) | `:8069` → `127.0.0.1:8310` |
 | Odoo longpolling | `127.0.0.1:8312` | `:8072` → `127.0.0.1:8312` |
-| PostgreSQL dev | `127.0.0.1:8301` (debugging psql) | `:5432` → `127.0.0.1:8301` |
+| PostgreSQL dev | NU expus pe host (Ecommerce monorepo ține range-ul 830x) | — |
 | PostgreSQL prod | NU expus pe host (network paff-erp doar) | — |
 
 - Master password Odoo: doar prin `.env` (NICIODATĂ în git)
 - Generate cu: `scripts/generate-secrets.sh --update`
-- Conflict port 8310: dacă rulezi simultan cu Ecommerce monorepo, oprește acel container întâi (`cd ~/Work/Ecommerce && docker compose stop odoo`)
+- **psql debugging**: `docker exec -it paff-erp-postgres psql -U odoo_user -d paff_prod` (NU expunem port pe host — evităm conflict permanent cu paff-postgres din Ecommerce monorepo, range 830x)
+- Conflict port 8310 Odoo: dacă rulezi simultan cu Ecommerce monorepo + Odoo legacy, oprește acel container întâi (`cd ~/Work/Ecommerce && docker compose stop odoo`)
 
 ## TODO USER (locuri unde input-ul tău e valuable)
 
@@ -380,6 +383,7 @@ Detalii: [docs/research-backlog.md](docs/research-backlog.md). Format scoped (PR
 - [Architecture overview](docs/architecture.md)
 - [ADR 0001 — Three-Layer Isolation](docs/adr/0001-three-layer-isolation.md)
 - [ADR 0002 — Upstream Pinning Policy](docs/adr/0002-upstream-pinning-policy.md)
+- [ADR 0003 — Pure ERP, No Website](docs/adr/0003-pure-erp-no-website.md)
 - [Runbook — Upgrade](docs/runbooks/upgrade.md)
 - [Runbook — Incident](docs/runbooks/incident.md)
 - [Patches workflow](patches/README.md)

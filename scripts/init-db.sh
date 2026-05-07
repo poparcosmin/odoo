@@ -43,10 +43,6 @@ DEFAULT_L10N_RO_MODULES=(
   "l10n_ro_account_report_invoice"
   "l10n_ro_fiscal_validation"
   "l10n_ro_vat_on_payment"
-  # Bank statements MT940
-  "l10n_ro_account_bank_statement_import_mt940_base"
-  "l10n_ro_account_bank_statement_import_mt940_bcr"
-  "l10n_ro_account_bank_statement_import_mt940_ing"
   # Geo / partners
   "l10n_ro_city"
   "l10n_ro_partner_create_by_vat"
@@ -63,6 +59,12 @@ DEFAULT_L10N_RO_MODULES=(
   "l10n_ro_payment_receipt_report"
   "l10n_ro_payment_to_statement"
 )
+
+# MODULE MT940 (l10n_ro_account_bank_statement_import_mt940_*) cer dependența
+# `account_statement_import_file` care e în OCA/bank-statement-import (alt submodule).
+# Pentru a le activa, adaugă mai întâi:
+#   git submodule add https://github.com/OCA/bank-statement-import.git src/addons-vendor/bank-statement-import
+# Apoi adaugă "l10n_ro_account_bank_statement_import_mt940_{base,bcr,ing}" în lista de mai sus.
 
 MODULES_CSV=$(IFS=','; echo "${DEFAULT_L10N_RO_MODULES[*]}")
 
@@ -100,9 +102,10 @@ fi
 
 echo "[init-db] Running odoo --init... (acest pas poate dura 5-10 minute)"
 
-docker exec paff-erp-odoo \
+# ODOO_RC env în container e setat la /etc/odoo/odoo.conf (template).
+# Override la /tmp/odoo.conf.rendered (envsubst-ed de entrypoint).
+docker exec -e ODOO_RC=/tmp/odoo.conf.rendered paff-erp-odoo \
   odoo \
-    -c /etc/odoo/odoo.conf \
     -d "$DB_NAME" \
     --init "$MODULES_CSV" \
     --load-language ro_RO \
@@ -110,9 +113,43 @@ docker exec paff-erp-odoo \
     --stop-after-init \
     --log-level=info
 
+#─────────────────────────────────────────────────────────────────────────
+# POST-INIT: Blacklist module Website (PAFF e pure ERP).
+#
+# Storefront-ul e Medusa la paff.ro. Odoo nu trebuie să facă duplicate.
+# Decizie documentată în docs/adr/0003-pure-erp-no-website.md.
+#
+# Setăm auto_install=False ca să prevenim re-instalare accidentală prin:
+#   - Apps page → Update Module List → Install (user click)
+#   - Dependency cascade când instalez addon nou care declară `depends: ['website']`
+#
+# Module afectate: website + 4 children + viitoare website_*.
+# Lista: query directă cu LIKE 'website%' (acoperă auto-discovery future modules).
+#─────────────────────────────────────────────────────────────────────────
+echo "[init-db] Blacklist module Website (PAFF pure ERP, see ADR 0003)..."
+
+docker exec paff-erp-postgres \
+  psql -U "${ODOO_DB_USER}" -d "$DB_NAME" -q -c "
+    UPDATE ir_module_module
+    SET auto_install = false
+    WHERE name LIKE 'website%'
+       OR name LIKE 'theme_%'
+       OR name IN ('mass_mailing', 'survey');
+  " > /dev/null
+
+WEBSITE_BLACKLISTED=$(docker exec paff-erp-postgres \
+  psql -U "${ODOO_DB_USER}" -d "$DB_NAME" -tAc \
+    "SELECT count(*) FROM ir_module_module WHERE name LIKE 'website%' AND auto_install = false")
+
+echo "[init-db]   → ${WEBSITE_BLACKLISTED} module website* marcate auto_install=false"
+
 echo
 echo "[init-db] ✓ DB '$DB_NAME' initialized cu localizare RO"
 echo "[init-db] Login: admin / admin (SCHIMBĂ parola IMEDIAT prin /web/login)"
 echo
-echo "[init-db] Browser: http://localhost:8310/web/database/manager"
-echo "[init-db]          → click pe '$DB_NAME' → login admin/admin"
+echo "[init-db] Browser: http://localhost:8310/web/login"
+echo "[init-db]          → login admin/admin → /odoo backend"
+echo
+echo "[init-db] NOTĂ: NU expunem /web/database/manager în prod (security risk)."
+echo "[init-db]       În dev e accesibil dar nu îl folosi pentru creare DB —"
+echo "[init-db]       use scripts/init-db.sh pentru reproducibilitate."

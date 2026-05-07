@@ -10,6 +10,37 @@
 
 ---
 
+## R-000 — Pre-launch Configuration Checklist Odoo 19 (PAFF SRL B2B RO) ✅ EXECUTED
+
+**Status:** executed (2026-05-06), with dual-LLM critique
+**Priority:** HIGH (blocking pentru go-live)
+**Outputs:**
+- `~/.claude/data/research/2026-05-06-odoo19-pre-launch-checklist-v1.md` (initial research)
+- `~/.claude/data/research/2026-05-06-odoo19-pre-launch-checklist-v2.md` (v2 + critique fixes)
+
+### Key findings
+
+- **14 etape** (vs 9 în v1) cu ~120 setting points
+- **3 erori critice corectate** post-critique:
+  - ANAF USB token (one-time browser, NU operational)
+  - Chart of Accounts IFRS (illegal pentru SRL — doar PlanConturiBalSocCom)
+  - Custom security groups iterative (must fi UP-FRONT)
+- **5 etape NEW** identificate de critique:
+  - ETAPA 0 — Security Hardening (admin lifecycle, MFA, session)
+  - ETAPA 2-bis — TVA la încasare + BNR cron (B2B valută)
+  - ETAPA 3-bis — E-Factura Inbound + OAuth lifecycle (token 90 zile)
+  - ETAPA 10 — Audit Log Extensiv (5 ani RO compliance)
+  - ETAPA 11 — Export Rights & Exfiltration Controls
+  - ETAPA 12 — Backup VERIFIED (restore test mandatory)
+  - ETAPA 14 — Incident Response Plan
+- **Verdict comun (Gemini + Codex):** NU lansa cu v1 — era configurare funcțională, NU readiness producție
+
+### Next consume
+
+V2 e seed pentru `/plan-session` sau `/paff-plan`. Începe execuția cu ETAPA 0 (Security Hardening) ca prerequisite.
+
+---
+
 ## R-001 — Integrare Telegram în Odoo (3 use cases)
 
 **Status:** scoped, awaiting execution
@@ -182,6 +213,54 @@ CONSTRANGERI:
 2. WebSearch "nginx reverse proxy odoo 19 multiple sites letsencrypt"
 3. WebSearch "docker compose production logs rotation systemd journal"
 4. Agent Oracle — verifică runbook-ul actual pe edge cases OVH
+```
+
+---
+
+## R-004 — Mass Mailing + Survey Modules (DEFERRED ~2027)
+
+**Status:** deferred per ADR 0003 (decizie utilizator 2026-05-07)
+**Priority:** low (nu blocking, evaluare after Medusa go-live + 1 an)
+**Decision date target:** Q1 2027 (after primii 12 luni B2B operational data)
+
+### Context
+
+La uninstall website* (per ADR 0003), s-au evaluat și module-urile:
+- `mass_mailing` (newsletter campaigns)
+- `survey` (post-purchase / NPS surveys)
+
+Decizie: **NU instalăm acum**, dar nu blocăm pentru viitor. User a indicat: *"o sa le folosim, nu acum, dar peste 1 an probabil le vom folosi"*.
+
+### Re-evaluation criteria (Q1 2027)
+
+```
+PROBLEMA: PAFF SRL are 12 luni de date B2B operational (ANAF e-Factura logged,
+  comenzi Medusa logged, customer base ~50-200 B2B clients). Vrem să decidem
+  dacă canalul de email marketing rulează din Odoo (mass_mailing native) sau
+  through SaaS extern (Mailchimp, Postmark, Resend already used pentru transactional).
+
+STACK:
+  - Odoo 19 fără website* modules (per ADR 0003)
+  - Medusa storefront paff.ro (transactional emails via Resend already)
+  - Customer data în Odoo res.partner + Medusa customer
+  - GDPR compliance — opt-in tracking explicit
+
+CE AM ÎNCERCAT: Nimic. Re-eval after operational data.
+
+CONSTRANGERI:
+  - Mass mailing Odoo necesită website re-install (dependency cascade)
+  - SaaS extern păstrează Odoo curat (preferred per ADR 0003)
+  - Cost: Mailchimp €13/mo for 500 contacts vs Postmark $15/mo unlimited transactional
+```
+
+### Plan execuție (Q1 2027)
+
+```
+1. Pull Odoo customer data: count B2B + segments (mărimi comenzi, freq)
+2. WebSearch "Odoo mass_mailing vs Mailchimp B2B 2027 comparison"
+3. /compare Odoo native (with website re-install) vs Resend campaigns vs Mailchimp
+4. Decizie: dacă rămânem extern, R-004 closed cu "no action"
+   Dacă mergem Odoo native, ADR 0004 cu plan re-install controlled (subset modules)
 ```
 
 ---
