@@ -422,3 +422,4 @@ Detalii: [docs/research-backlog.md](docs/research-backlog.md). Format scoped (PR
 - [Patches workflow](patches/README.md)
 - [Patch template](docs/templates/patch.md)
 - [Permissions Matrix](docs/permissions-matrix.md) — 4 roluri (Vânzător/Operator, Contabil, Manager, Admin) + CRUD matrix + workflow approval + MFA policy
+- [Implementation Plan v2](docs/implementation-plan-2026-05-07.md) — 5-phase production readiness (Phase 0 + 1 done; Phase 1.5, 2, 3 pending)
