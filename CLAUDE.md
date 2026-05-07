@@ -418,6 +418,7 @@ Detalii: [docs/research-backlog.md](docs/research-backlog.md). Format scoped (PR
 - [ADR 0003 — Pure ERP, No Website](docs/adr/0003-pure-erp-no-website.md)
 - [Runbook — Upgrade](docs/runbooks/upgrade.md)
 - [Runbook — Incident](docs/runbooks/incident.md)
+- [Runbook — Restore & DR](docs/runbooks/restore.md) — 4 scenarios (DB corrupt, filestore lost, code lost, full disaster) cu RTO/RPO targets
 - [Patches workflow](patches/README.md)
 - [Patch template](docs/templates/patch.md)
 - [Permissions Matrix](docs/permissions-matrix.md) — 4 roluri (Vânzător/Operator, Contabil, Manager, Admin) + CRUD matrix + workflow approval + MFA policy
