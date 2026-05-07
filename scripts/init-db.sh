@@ -143,6 +143,20 @@ WEBSITE_BLACKLISTED=$(docker exec paff-erp-postgres \
 
 echo "[init-db]   → ${WEBSITE_BLACKLISTED} module website* marcate auto_install=false"
 
+#─────────────────────────────────────────────────────────────────────────
+# POST-INIT: Phase 2 Batch A — payment terms + export rights + activities
+# (zero-credit business model + PAFF activity types)
+#─────────────────────────────────────────────────────────────────────────
+PHASE2A_SCRIPT="${REPO_ROOT}/scripts/phase-2-batch-a-quick-wins.py"
+if [[ -f "$PHASE2A_SCRIPT" ]]; then
+  echo "[init-db] Apply Phase 2 Batch A (payment terms, export rights, activities)..."
+  docker cp "$PHASE2A_SCRIPT" paff-erp-odoo:/tmp/phase2_batch_a.py
+  docker exec -e ODOO_RC=/tmp/odoo.conf.rendered -i paff-erp-odoo \
+    odoo shell -d "$DB_NAME" --no-http \
+    < "$PHASE2A_SCRIPT" 2>&1 | grep -E "^\[E|^\[T|✅|→ |^E[0-9]|^T[0-9]" || true
+  echo "[init-db]   ✓ Phase 2 Batch A applied"
+fi
+
 echo
 echo "[init-db] ✓ DB '$DB_NAME' initialized cu localizare RO"
 echo "[init-db] Login: admin / admin (SCHIMBĂ parola IMEDIAT prin /web/login)"
