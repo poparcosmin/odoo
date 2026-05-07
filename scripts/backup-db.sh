@@ -50,9 +50,8 @@ echo "[backup] Starting ${BACKUP_TYPE} backup of $DB_NAME → $BACKUP_PATH"
 # Step 1: PostgreSQL dump
 #─────────────────────────────────────────────────────────────────────────
 echo "[backup] Step 1/3: pg_dump ..."
-docker exec paff-odoo \
+docker exec paff-erp-postgres \
   pg_dump --format=custom --no-owner --no-acl \
-          --host="${PG_HOST:-postgres}" \
           --username="${PG_USER:-odoo_user}" \
           --dbname="$DB_NAME" \
   > "${BACKUP_PATH}/db.dump"
@@ -62,15 +61,20 @@ echo "[backup]   PG dump: $DB_SIZE"
 
 #─────────────────────────────────────────────────────────────────────────
 # Step 2: Filestore tar (attachments — NU sunt în PG)
+# Filestore-ul e în container Odoo (volume named, NU bind mount pe host).
 #─────────────────────────────────────────────────────────────────────────
-FILESTORE_DB="${FILESTORE_ROOT}/${DB_NAME}"
-if [[ -d "$FILESTORE_DB" ]]; then
-  echo "[backup] Step 2/3: tar filestore ..."
-  tar -czf "${BACKUP_PATH}/filestore.tar.gz" -C "$FILESTORE_ROOT" "$DB_NAME"
+FILESTORE_EXISTS=$(docker exec paff-erp-odoo \
+  test -d "/var/lib/odoo/filestore/${DB_NAME}" && echo "yes" || echo "no")
+
+if [[ "$FILESTORE_EXISTS" == "yes" ]]; then
+  echo "[backup] Step 2/3: tar filestore (via docker exec) ..."
+  docker exec paff-erp-odoo \
+    tar czf - -C /var/lib/odoo/filestore "$DB_NAME" \
+    > "${BACKUP_PATH}/filestore.tar.gz"
   FS_SIZE=$(du -sh "${BACKUP_PATH}/filestore.tar.gz" | cut -f1)
   echo "[backup]   Filestore: $FS_SIZE"
 else
-  echo "[backup]   ⚠ No filestore directory at $FILESTORE_DB (new DB?)"
+  echo "[backup]   ⚠ No filestore directory in container (new DB?)"
   touch "${BACKUP_PATH}/.no-filestore"
 fi
 

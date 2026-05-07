@@ -53,14 +53,12 @@ fi
 # Step 1: Drop & recreate target DB
 #─────────────────────────────────────────────────────────────────────────
 echo "[restore] Step 1/3: drop & recreate $TARGET_DB ..."
-docker exec paff-odoo \
-  psql --host="${PG_HOST:-postgres}" \
-       --username="${PG_USER:-odoo_user}" \
+docker exec paff-erp-postgres \
+  psql --username="${PG_USER:-odoo_user}" \
        --dbname=postgres \
        -c "DROP DATABASE IF EXISTS \"$TARGET_DB\";"
-docker exec paff-odoo \
-  psql --host="${PG_HOST:-postgres}" \
-       --username="${PG_USER:-odoo_user}" \
+docker exec paff-erp-postgres \
+  psql --username="${PG_USER:-odoo_user}" \
        --dbname=postgres \
        -c "CREATE DATABASE \"$TARGET_DB\" WITH OWNER \"${PG_USER:-odoo_user}\";"
 
@@ -68,9 +66,8 @@ docker exec paff-odoo \
 # Step 2: pg_restore
 #─────────────────────────────────────────────────────────────────────────
 echo "[restore] Step 2/3: pg_restore ..."
-docker exec -i paff-odoo \
-  pg_restore --host="${PG_HOST:-postgres}" \
-             --username="${PG_USER:-odoo_user}" \
+docker exec -i paff-erp-postgres \
+  pg_restore --username="${PG_USER:-odoo_user}" \
              --dbname="$TARGET_DB" \
              --no-owner --no-acl \
   < "${BACKUP_PATH}/db.dump"
@@ -79,16 +76,22 @@ docker exec -i paff-odoo \
 # Step 3: Filestore restore
 #─────────────────────────────────────────────────────────────────────────
 if [[ -f "${BACKUP_PATH}/filestore.tar.gz" ]]; then
-  echo "[restore] Step 3/3: filestore restore ..."
-  TARGET_FS="${FILESTORE_ROOT}/${TARGET_DB}"
-  rm -rf "$TARGET_FS"
-  mkdir -p "$FILESTORE_ROOT"
-  tar -xzf "${BACKUP_PATH}/filestore.tar.gz" -C "$FILESTORE_ROOT"
-
-  # Original filestore dir e numit după DB original — redenumim la target
+  echo "[restore] Step 3/3: filestore restore (via docker exec) ..."
   ORIG_DB=$(awk '/^db_name:/ {print $2}' "${BACKUP_PATH}/MANIFEST")
-  if [[ "$ORIG_DB" != "$TARGET_DB" ]] && [[ -d "${FILESTORE_ROOT}/${ORIG_DB}" ]]; then
-    mv "${FILESTORE_ROOT}/${ORIG_DB}" "$TARGET_FS"
+
+  # Cleanup target filestore dir în container
+  docker exec paff-erp-odoo \
+    rm -rf "/var/lib/odoo/filestore/${TARGET_DB}" "/var/lib/odoo/filestore/${ORIG_DB}"
+
+  # Untar via stdin pipe to container
+  docker exec -i paff-erp-odoo \
+    tar xzf - -C /var/lib/odoo/filestore \
+    < "${BACKUP_PATH}/filestore.tar.gz"
+
+  # Rename dir dacă target != original
+  if [[ "$ORIG_DB" != "$TARGET_DB" ]]; then
+    docker exec paff-erp-odoo \
+      mv "/var/lib/odoo/filestore/${ORIG_DB}" "/var/lib/odoo/filestore/${TARGET_DB}"
     echo "[restore]   Renamed filestore: $ORIG_DB → $TARGET_DB"
   fi
 elif [[ -f "${BACKUP_PATH}/.no-filestore" ]]; then
