@@ -1,3 +1,19 @@
 [submodule "src/addons-vendor/l10n-romania"]
 	path = src/addons-vendor/l10n-romania
 	url = https://github.com/OCA/l10n-romania.git
+[submodule "src/addons-vendor/account-financial-reporting"]
+	path = src/addons-vendor/account-financial-reporting
+	url = https://github.com/OCA/account-financial-reporting.git
+	branch = 19.0
+[submodule "src/addons-vendor/web"]
+	path = src/addons-vendor/web
+	url = https://github.com/OCA/web.git
+	branch = 19.0
+[submodule "src/addons-vendor/server-ux"]
+	path = src/addons-vendor/server-ux
+	url = https://github.com/OCA/server-ux.git
+	branch = 19.0
+[submodule "src/addons-vendor/reporting-engine"]
+	path = src/addons-vendor/reporting-engine
+	url = https://github.com/OCA/reporting-engine.git
+	branch = 19.0
