@@ -5,9 +5,10 @@
 
 services:
   postgres:
-    ports:
-      # Localhost only — accesibil din host pentru debugging psql
-      - "127.0.0.1:8301:5432"
+    # NU expunem port pe host — Odoo accesează postgres prin network paff-erp-net.
+    # Pentru psql debugging din host: `docker exec -it paff-erp-postgres psql -U odoo_user -d paff_prod`
+    # Decizie: range 830x e ocupat de Ecommerce monorepo (paff-postgres, paff-redis, paff-meilisearch,
+    # paff-minio, etc). Evităm conflict permanent printr-un access pattern uniform via docker exec.
 
   odoo:
     ports:
