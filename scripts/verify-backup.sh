@@ -92,27 +92,23 @@ else
   FAILED=$((FAILED + 1))
 fi
 
-# ─── Step 3: Filestore restore + verify ────────────────────────────────
-echo "[verify] Step 3/4: filestore restore ..."
+# ─── Step 3: Filestore verify (în SCRATCH DIR — NU peste filestore real!) ─
+# CRITICAL: Untar într-un /tmp scratch dir SEPARAT de /var/lib/odoo/filestore.
+# Bugul anterior (restore peste paff_prod + rename + cleanup) a distrus filestore-ul
+# real. Lecție pe viu — testat cu hard reset 2026-05-07.
+echo "[verify] Step 3/4: filestore verify (scratch dir, NU touchez real) ..."
 
 if [[ -f "${BACKUP_PATH}/filestore.tar.gz" ]]; then
-  ORIG_DB=$(awk '/^db_name:/ {print $2}' "${BACKUP_PATH}/MANIFEST")
+  SCRATCH_DIR="/tmp/verify-filestore-$$"
 
-  # Cleanup target dir
-  docker exec paff-erp-odoo \
-    rm -rf "/var/lib/odoo/filestore/${TEST_DB}" "/var/lib/odoo/filestore/${ORIG_DB}_verify" 2>/dev/null || true
-
-  # Untar
+  # Untar în scratch dir izolat
+  docker exec paff-erp-odoo mkdir -p "$SCRATCH_DIR"
   docker exec -i paff-erp-odoo \
-    tar xzf - -C /var/lib/odoo/filestore < "${BACKUP_PATH}/filestore.tar.gz"
+    tar xzf - -C "$SCRATCH_DIR" < "${BACKUP_PATH}/filestore.tar.gz"
 
-  # Rename dir → unique pentru test
-  docker exec paff-erp-odoo \
-    mv "/var/lib/odoo/filestore/${ORIG_DB}" "/var/lib/odoo/filestore/${TEST_DB}" 2>/dev/null || true
-
-  # Count files in test filestore
+  # Count files
   FS_COUNT=$(docker exec paff-erp-odoo \
-    find "/var/lib/odoo/filestore/${TEST_DB}" -type f 2>/dev/null | wc -l)
+    find "$SCRATCH_DIR" -type f 2>/dev/null | wc -l)
   if [[ "$FS_COUNT" -gt 0 ]]; then
     echo "  ✓ filestore: $FS_COUNT files"
   else
@@ -120,9 +116,8 @@ if [[ -f "${BACKUP_PATH}/filestore.tar.gz" ]]; then
     FAILED=$((FAILED + 1))
   fi
 
-  # Cleanup test filestore
-  docker exec paff-erp-odoo \
-    rm -rf "/var/lib/odoo/filestore/${TEST_DB}"
+  # Cleanup scratch (NU touchez real filestore!)
+  docker exec paff-erp-odoo rm -rf "$SCRATCH_DIR"
 else
   echo "  ⚠ no filestore in backup (acceptable for new DB)"
 fi

@@ -79,8 +79,10 @@ run_step() {
 FAILED_STEPS=()
 
 # ─── Header ────────────────────────────────────────────────────────────
+DRY_BANNER=""
+[[ "$DRY_RUN" -eq 1 ]] && DRY_BANNER=" (DRY-RUN)"
 log "════════════════════════════════════════════════════════════════"
-log "  BACKUP MASTER — $DATE_HUMAN — type=$BACKUP_TYPE${DRY_RUN:+ (DRY-RUN)}"
+log "  BACKUP MASTER — $DATE_HUMAN — type=$BACKUP_TYPE$DRY_BANNER"
 log "  DOW=$DOW DOM=$DOM | verify=$RUN_VERIFY_BACKUP | offsite=$RUN_SYNC_OFFSITE"
 log "════════════════════════════════════════════════════════════════"
 
